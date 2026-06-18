@@ -141,7 +141,7 @@ function renderClubDetails() {
       <div class="detailItem"><span>Patrolling volunteers</span><b>${fmt(club.patrollingVolunteers)}</b></div>
       <div class="detailItem"><span>Volunteer hours</span><b>${fmt(club.volunteerPatrolHours)}</b></div>
       <div class="detailItem"><span>PLS hours</span><b>${fmt(club.plsPatrolHours)}</b></div>
-      <div class="detailItem"><span>Nationals entries %</span><b>${pct(club.nationalsPercent)}</b></div>
+      <div class="detailItem"><span>Nationals Entries</span><b>${fmt(club.nationsEntries)}</b></div>
     </div>`;
 }
 
@@ -229,28 +229,122 @@ function renderBoard() {
 function sum(list, field) { return list.reduce((t, c) => t + (Number(c[field]) || 0), 0); }
 function avg(list, field) { return list.length ? Math.round(sum(list, field) / list.length) : 0; }
 
+function haversineKm(a, b) {
+  const R = 6371;
+  const toRad = deg => Number(deg) * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h = Math.sin(dLat/2)**2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function geographyStats(list) {
+  const valid = list.filter(c => Number.isFinite(Number(c.lat)) && Number.isFinite(Number(c.lng)));
+  if (valid.length < 2) return { maxKm: 0, avgKm: 0, pair: '', label: 'Compact', level: 'ok' };
+  let maxKm = 0, total = 0, count = 0, pair = '';
+  for (let i = 0; i < valid.length; i++) {
+    for (let j = i + 1; j < valid.length; j++) {
+      const km = haversineKm(valid[i], valid[j]);
+      total += km; count++;
+      if (km > maxKm) { maxKm = km; pair = `${valid[i].name} ↔ ${valid[j].name}`; }
+    }
+  }
+  const avgKm = count ? total / count : 0;
+  const label = maxKm >= 450 ? 'Very wide' : maxKm >= 250 ? 'Wide' : maxKm >= 120 ? 'Moderate' : 'Compact';
+  const level = maxKm >= 450 ? 'bad' : maxKm >= 250 ? 'warn' : 'ok';
+  return { maxKm: Math.round(maxKm), avgKm: Math.round(avgKm), pair, label, level };
+}
+
+function allPodTotals() {
+  return visiblePods().map(pod => podTotals(pod));
+}
+
+function metricLevel(value, values) {
+  const nums = values.filter(v => Number.isFinite(v));
+  if (!nums.length) return 'ok';
+  const avgValue = nums.reduce((a,b)=>a+b,0) / nums.length;
+  if (!avgValue) return 'ok';
+  const ratio = value / avgValue;
+  if (ratio >= 1.35) return 'bad';
+  if (ratio >= 1.15) return 'warn';
+  return 'ok';
+}
+
+function levelLabel(level) { return level === 'bad' ? 'High' : level === 'warn' ? 'Elevated' : 'Balanced'; }
+function levelDot(level) { return `<span class="trafficDot ${level}"></span>`; }
+
+function podObservations(total, totals) {
+  const metrics = [
+    ['primaryMembers', 'largest primary membership'],
+    ['patrollingVolunteers', 'highest patrol volunteer count'],
+    ['volunteerPatrolHours', 'highest volunteer patrol workload'],
+    ['plsPatrolHours', 'highest PLS commitment'],
+    ['nationsEntries', 'highest Nationals entries'],
+    ['clubs', 'highest club count']
+  ];
+  const obs = [];
+  metrics.forEach(([field, text]) => {
+    const max = Math.max(...totals.map(t => Number(t[field]) || 0));
+    if (max > 0 && (Number(total[field]) || 0) === max) obs.push(`Contains the ${text}.`);
+  });
+  if (total.geo.level === 'bad') obs.push(`Very wide geographic footprint: ${total.geo.maxKm} km between furthest clubs.`);
+  else if (total.geo.level === 'warn') obs.push(`Wide geographic footprint: ${total.geo.maxKm} km between furthest clubs.`);
+  if (!obs.length) obs.push('No major outliers based on the current metrics.');
+  return obs.slice(0, 3);
+}
+
+function balanceScore(total, totals) {
+  const fields = ['clubs','primaryMembers','patrollingVolunteers','volunteerPatrolHours','plsPatrolHours','nationsEntries'];
+  const penalties = fields.map(field => {
+    const vals = totals.map(t => Number(t[field]) || 0);
+    const avgValue = vals.reduce((a,b)=>a+b,0) / Math.max(vals.length, 1);
+    if (!avgValue) return 0;
+    return Math.min(Math.abs((Number(total[field]) || 0) - avgValue) / avgValue, 1);
+  });
+  penalties.push(total.geo.level === 'bad' ? .55 : total.geo.level === 'warn' ? .25 : 0);
+  const avgPenalty = penalties.reduce((a,b)=>a+b,0) / penalties.length;
+  return Math.max(0, Math.round((1 - avgPenalty) * 100));
+}
+
+
 function renderSummary() {
   const el = document.getElementById('summary');
   el.innerHTML = '';
   el.style.setProperty('--pod-count', visiblePods().length);
-  visiblePods().forEach(pod => {
-    const list = clubs.filter(c => podFor(c).name === pod.name);
+  const totals = allPodTotals();
+  const metricValues = Object.fromEntries(['clubs','primaryMembers','patrollingVolunteers','volunteerPatrolHours','plsPatrolHours','nationsEntries'].map(f => [f, totals.map(t => Number(t[f]) || 0)]));
+
+  totals.forEach(total => {
+    const pod = total.pod;
+    const score = balanceScore(total, totals);
+    const obs = podObservations(total, totals);
     const card = document.createElement('div');
-    card.className = 'summaryCard';
+    card.className = 'summaryCard summaryCardV2';
     card.style.setProperty('--pod', pod.color);
-    card.innerHTML = `<strong>${pod.name}</strong><div class="summaryGrid">
-      <span>Clubs: <b>${list.length}</b></span>
-      <span>Members: <b>${sum(list,'primaryMembers').toLocaleString()}</b></span>
-      <span>Other members: <b>${sum(list,'otherMembers').toLocaleString()}</b></span>
-      <span>Volunteer hrs: <b>${sum(list,'volunteerPatrolHours').toLocaleString()}</b></span>
-      <span>PLS hrs: <b>${sum(list,'plsPatrolHours').toLocaleString()}</b></span>
-      <span>Patrol volunteers: <b>${sum(list,'patrollingVolunteers').toLocaleString()}</b></span>
-      <span>Avg Māori %: <b>${avg(list,'maoriPercent')}%</b></span>
-    </div>`;
+    card.innerHTML = `<div class="summaryTop">
+        <div><strong>${pod.name}</strong><span>${total.clubs} clubs</span></div>
+        <div class="scoreBadge ${score < 70 ? 'bad' : score < 84 ? 'warn' : 'ok'}">${score}%</div>
+      </div>
+      <div class="summaryGrid summaryGridV2">
+        <span>Primary Members <b>${fmt(total.primaryMembers)}</b></span>
+        <span>Other Members <b>${fmt(total.otherMembers)}</b></span>
+        <span>Patrol Volunteers <b>${fmt(total.patrollingVolunteers)}</b></span>
+        <span>Volunteer Hours <b>${fmt(total.volunteerPatrolHours)}</b></span>
+        <span>PLS Hours <b>${fmt(total.plsPatrolHours)}</b></span>
+        <span>Nationals Entries <b>${fmt(total.nationsEntries)}</b></span>
+      </div>
+      <div class="balanceRows">
+        <div>${levelDot(metricLevel(total.primaryMembers, metricValues.primaryMembers))} Primary Members <b>${levelLabel(metricLevel(total.primaryMembers, metricValues.primaryMembers))}</b></div>
+        <div>${levelDot(metricLevel(total.volunteerPatrolHours, metricValues.volunteerPatrolHours))} Volunteer Hours <b>${levelLabel(metricLevel(total.volunteerPatrolHours, metricValues.volunteerPatrolHours))}</b></div>
+        <div>${levelDot(total.geo.level)} Geographic Spread <b>${total.geo.label}</b></div>
+      </div>
+      <div class="geoInsight">Furthest clubs: <b>${total.geo.maxKm ? `${fmt(total.geo.maxKm)} km` : '—'}</b>${total.geo.pair ? `<small>${escapeHtml(total.geo.pair)}</small>` : ''}</div>
+      <details class="whyBox"><summary>Why?</summary><ul>${obs.map(o => `<li>${escapeHtml(o)}</li>`).join('')}</ul></details>`;
     el.appendChild(card);
   });
 }
-
 function renderAll(){ renderMarkers(); renderBoard(); renderSummary(); renderClubDetails(); }
 
 document.getElementById('searchInput').addEventListener('input', renderAll);
@@ -320,13 +414,15 @@ function reportDate() {
 function reportHeader(title, subtitle = '') {
   return `<div class="reportHeader">
     <div><h1>${escapeHtml(title)}</h1>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}</div>
-    <div class="reportMeta">SLSNZ Club Support Pod Builder<br>Generated ${reportDate()}</div>
+    <div class="reportMeta">Club Support Model Designer<br>Generated ${reportDate()}</div>
   </div>`;
 }
 
 function podTotals(pod) {
   const list = clubs.filter(c => podFor(c).name === pod.name);
+  const geo = geographyStats(list);
   return {
+    pod,
     list,
     clubs: list.length,
     primaryMembers: sum(list, 'primaryMembers'),
@@ -335,10 +431,9 @@ function podTotals(pod) {
     plsPatrolHours: sum(list, 'plsPatrolHours'),
     patrollingVolunteers: sum(list, 'patrollingVolunteers'),
     nationsEntries: sum(list, 'nationsEntries'),
-    maoriPercent: avg(list, 'maoriPercent')
+    geo
   };
 }
-
 function buildReportMapSvg() {
   const valid = clubs.filter(c => Number.isFinite(Number(c.lat)) && Number.isFinite(Number(c.lng)));
   const minLat = Math.min(...valid.map(c => Number(c.lat))) - 1.1;
@@ -400,10 +495,12 @@ function buildCompositionPages() {
 }
 
 function buildSummaryPage() {
-  const rows = visiblePods().map(pod => {
-    const t = podTotals(pod);
-    return `<tr style="--pod:${pod.color}">
-      <td class="reportColourCell">${escapeHtml(pod.name)}</td>
+  const totals = allPodTotals();
+  const rows = totals.map(t => {
+    const score = balanceScore(t, totals);
+    const obs = podObservations(t, totals).join(' ');
+    return `<tr style="--pod:${t.pod.color}">
+      <td class="reportColourCell">${escapeHtml(t.pod.name)}</td>
       <td>${t.clubs}</td>
       <td>${fmt(t.primaryMembers)}</td>
       <td>${fmt(t.otherMembers)}</td>
@@ -411,23 +508,24 @@ function buildSummaryPage() {
       <td>${fmt(t.volunteerPatrolHours)}</td>
       <td>${fmt(t.plsPatrolHours)}</td>
       <td>${fmt(t.nationsEntries)}</td>
-      <td>${t.maoriPercent}%</td>
+      <td>${score}%</td>
+      <td>${escapeHtml(t.geo.label)}<br><small>${fmt(t.geo.maxKm)} km max</small></td>
+      <td>${escapeHtml(obs)}</td>
     </tr>`;
   }).join('');
   return `<section class="reportPage">
-    ${reportHeader('Pod Summary', 'Current totals based on the active pod allocation')}
+    ${reportHeader('Pod Summary', 'Current totals based on the active support model allocation')}
     <table class="reportSummaryTable">
-      <thead><tr><th>Pod</th><th>Clubs</th><th>Primary Members</th><th>Other Members</th><th>Patrol Volunteers</th><th>Volunteer Hrs</th><th>PLS Hrs</th><th>Nations Entries</th><th>Avg Māori %</th></tr></thead>
+      <thead><tr><th>Pod</th><th>Clubs</th><th>Primary Members</th><th>Other Members</th><th>Patrol Volunteers</th><th>Volunteer Hrs</th><th>PLS Hrs</th><th>Nationals Entries</th><th>Balance</th><th>Travel Spread</th><th>Observations</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p class="reportNote">Note: this report reflects the current on-screen pod allocation. Use Save File to store the underlying editable scenario.</p>
+    <p class="reportNote">Balance is an objective comparison between pods using the current metrics. It does not attempt to judge club health or capability need.</p>
   </section>`;
 }
-
 function buildPdfReport() {
-  const report = document.getElementById('reportView');
+  const report = document.getElementById('reportPages') || document.getElementById('reportView');
   report.innerHTML = `<section class="reportPage">
-    ${reportHeader('SLSNZ Club Support Pod Builder', 'Pod allocation map')}
+    ${reportHeader('Club Support Model Designer', 'Pod allocation map')}
     <div class="reportMapWrap">${buildReportMapSvg()}</div>
     ${buildLegendHtml()}
   </section>
@@ -435,9 +533,23 @@ function buildPdfReport() {
   ${buildSummaryPage()}`;
 }
 
-function exportPdf() {
+function openReportPreview() {
   buildPdfReport();
-  setTimeout(() => window.print(), 100);
+  const overlay = document.getElementById('reportView');
+  overlay.classList.add('is-open');
+  overlay.setAttribute('aria-hidden', 'false');
 }
 
+function closeReportPreview() {
+  const overlay = document.getElementById('reportView');
+  overlay.classList.remove('is-open');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+function exportPdf() {
+  openReportPreview();
+} 
+
 document.getElementById('pdfBtn')?.addEventListener('click', exportPdf);
+document.getElementById('printReportBtn')?.addEventListener('click', () => window.print());
+document.getElementById('closeReportBtn')?.addEventListener('click', closeReportPreview);

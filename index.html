@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SLSNZ Pod Builder</title>
+  <title>Club Support Model Designer</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
     <div>
-      <h1>SLSNZ Club Support Pod Builder</h1>
-      <p>Drag clubs between pods. Map colours and pod summaries update automatically.</p>
+      <h1>Club Support Model Designer</h1>
+      <p>Design, test and report SLSNZ club support model options.</p>
     </div>
     <div class="actions">
       <button id="toggleMapBtn">Hide Map</button>
@@ -64,7 +64,19 @@
     </section>
   </main>
 
-  <section id="reportView" aria-hidden="true"></section>
+  <section id="reportView" class="reportOverlay" aria-hidden="true">
+    <div class="reportToolbar">
+      <div>
+        <strong>PDF Report Preview</strong>
+        <span>Review the report, then print or save as PDF.</span>
+      </div>
+      <div class="reportToolbarActions">
+        <button id="printReportBtn">Print / Save PDF</button>
+        <button id="closeReportBtn">Close</button>
+      </div>
+    </div>
+    <div id="reportPages" class="reportPages"></div>
+  </section>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>
