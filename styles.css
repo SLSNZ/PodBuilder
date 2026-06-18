@@ -154,10 +154,10 @@ main { height: calc(100vh - 68px); grid-template-columns: 1.28fr .72fr; grid-tem
 .trafficDot.bad { background: #ef4444; }
 .geoInsight { margin-top: 7px; padding: 6px; border-radius: 7px; background: #eef6fa; font-size: 11px; }
 .geoInsight small { display: block; margin-top: 2px; color: #52616b; line-height: 1.25; }
-.whyBox { margin-top: 6px; font-size: 11px; }
-.whyBox summary { cursor: pointer; font-weight: 800; color: #005f83; }
-.whyBox ul { margin: 5px 0 0 16px; padding: 0; color: #334e68; }
-.whyBox li { margin-bottom: 3px; }
+.insightBox { margin-top: 6px; font-size: 11px; }
+.insightBox summary { cursor: pointer; font-weight: 800; color: #005f83; }
+.insightBox ul { margin: 5px 0 0 16px; padding: 0; color: #334e68; }
+.insightBox li { margin-bottom: 3px; }
 body.map-hidden #summary .summaryGridV2 { grid-template-columns: 1fr; }
 
 /* v6 PDF/report preview */
@@ -193,7 +193,7 @@ body.map-hidden #summary .summaryGridV2 { grid-template-columns: 1fr; }
 
 /* v8 pod notes and filter button removal */
 .summaryActions { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-top: 6px; }
-.summaryActions .whyBox { margin-top: 0; }
+.summaryActions .insightBox { margin-top: 0; }
 .noteBtn { background: #eef6fa; color: #005f83; padding: 4px 7px; font-size: 11px; border-radius: 7px; white-space: nowrap; }
 .podNotePreview { margin-top: 6px; padding: 7px; border-radius: 7px; background: #fffdf5; border: 1px solid #f5e6b3; font-size: 11px; line-height: 1.35; }
 .podNotePreview b { display: block; color: #7a4b00; margin-bottom: 2px; }
@@ -212,3 +212,21 @@ body.map-hidden #summary .summaryGridV2 { grid-template-columns: 1fr; }
 .reportPodNote { margin-top: 8px; padding: 7px; border-radius: 8px; background: #fffdf5; border: 1px solid #f5e6b3; font-size: 10px; line-height: 1.25; color: #334e68; }
 .reportPodNote b { color: #7a4b00; }
 @media print { .noteModal { display: none !important; } }
+
+/* v9 report and balance-score refinements */
+.scoreBadgeWrap { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.scoreBadgeWrap > span { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #627d98; margin: 0; }
+.scoreBadge { min-width: 50px; }
+.reportCompositionPage .reportCompositionGrid { grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+.reportCompositionPage .reportPodBox { min-height: 0; height: 78mm; overflow: hidden; display: flex; flex-direction: column; }
+.reportCompositionPage .reportPodBox ul { flex: 1 1 auto; overflow: hidden; }
+.reportObsNote { margin-top: 5px; padding-top: 5px; border-top: 1px solid #d9e2ec; color: #334e68; }
+.reportObsNote b { color: #7a4b00; }
+.reportSummaryTable th:last-child, .reportSummaryTable td:last-child { width: 250px; }
+@media print {
+  .reportCompositionPage .reportPodBox { height: 78mm; overflow: hidden; }
+}
+
+/* v10 naming and insights refinements */
+.scoreBadgeWrap small { font-size: 9px; color: #627d98; font-weight: 700; white-space: nowrap; }
+.insightBox summary { color: #005f83; }

@@ -313,6 +313,12 @@ function balanceScore(total, totals) {
   return Math.max(0, Math.round((1 - avgPenalty) * 100));
 }
 
+function balanceLabel(score) {
+  if (score >= 84) return 'Balanced';
+  if (score >= 70) return 'Moderately balanced';
+  return 'Needs review';
+}
+
 
 function renderSummary() {
   const el = document.getElementById('summary');
@@ -330,7 +336,11 @@ function renderSummary() {
     card.style.setProperty('--pod', pod.color);
     card.innerHTML = `<div class="summaryTop">
         <div><strong>${pod.name}</strong><span>${total.clubs} clubs</span></div>
-        <div class="scoreBadge ${score < 70 ? 'bad' : score < 84 ? 'warn' : 'ok'}">${score}%</div>
+        <div class="scoreBadgeWrap" title="Balance Score compares this pod against the average across all pods using club count, primary members, patrol volunteers, volunteer hours, PLS hours, Nationals entries and geographic spread.">
+          <span>Balance Score</span>
+          <div class="scoreBadge ${score < 70 ? 'bad' : score < 84 ? 'warn' : 'ok'}">${score}%</div>
+          <small>${balanceLabel(score)}</small>
+        </div>
       </div>
       <div class="summaryGrid summaryGridV2">
         <span>Primary Members <b>${fmt(total.primaryMembers)}</b></span>
@@ -347,7 +357,7 @@ function renderSummary() {
       </div>
       <div class="geoInsight">Furthest clubs: <b>${total.geo.maxKm ? `${fmt(total.geo.maxKm)} km` : '—'}</b>${total.geo.pair ? `<small>${escapeHtml(total.geo.pair)}</small>` : ''}</div>
       <div class="summaryActions">
-        <details class="whyBox"><summary>Why?</summary><ul>${obs.map(o => `<li>${escapeHtml(o)}</li>`).join('')}</ul></details>
+        <details class="insightBox"><summary>Insights</summary><ul><li><b>Balance Score:</b> ${balanceLabel(score)}. This compares the pod against all other pods using club count, Primary Members, Patrol Volunteers, Volunteer Hours, PLS Hours, Nationals Entries and geographic spread. It is not a club health or capability score.</li>${obs.map(o => `<li>${escapeHtml(o)}</li>`).join('')}</ul></details>
         <button class="noteBtn" data-note-pod="${pod.id}" type="button">${noteForPod(pod) ? 'Edit notes' : 'Add notes'}</button>
       </div>
       ${noteForPod(pod) ? `<div class="podNotePreview"><b>Notes</b><span>${escapeHtml(noteForPod(pod)).replace(/\n/g, '<br>')}</span></div>` : ''}`;
@@ -465,7 +475,7 @@ function reportDate() {
 function reportHeader(title, subtitle = '') {
   return `<div class="reportHeader">
     <div><h1>${escapeHtml(title)}</h1>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}</div>
-    <div class="reportMeta">Club Support Model Designer<br>Generated ${reportDate()}</div>
+    <div class="reportMeta">Club Support Model Pod Designer<br>Generated ${reportDate()}</div>
   </div>`;
 }
 
@@ -529,11 +539,10 @@ function buildLegendHtml() {
 
 function buildCompositionPages() {
   const reportPods = visiblePods();
-  const chunks = [reportPods.slice(0, 5), reportPods.slice(5, 10)];
-  return chunks.filter(chunk => chunk.length).map((chunk, index) => `<section class="reportPage">
-    ${reportHeader(`Pod Composition${chunks.length > 1 ? ` ${index + 1}` : ''}`, 'Club groupings by current pod allocation')}
+  return `<section class="reportPage reportCompositionPage">
+    ${reportHeader('Pod Composition', 'Club groupings by current pod allocation')}
     <div class="reportCompositionGrid">
-      ${chunk.map(pod => {
+      ${reportPods.map(pod => {
         const list = clubs.filter(c => podFor(c).name === pod.name).sort((a,b) => a.name.localeCompare(b.name));
         return `<div class="reportPodBox" style="--pod:${pod.color}">
           <h2><span>${escapeHtml(pod.name)}</span><span>${list.length}</span></h2>
@@ -542,7 +551,7 @@ function buildCompositionPages() {
         </div>`;
       }).join('')}
     </div>
-  </section>`).join('');
+  </section>`;
 }
 
 function buildSummaryPage() {
@@ -559,19 +568,18 @@ function buildSummaryPage() {
       <td>${fmt(t.volunteerPatrolHours)}</td>
       <td>${fmt(t.plsPatrolHours)}</td>
       <td>${fmt(t.nationsEntries)}</td>
-      <td>${score}%</td>
+      <td><b>${score}%</b><br><small>${balanceLabel(score)}</small></td>
       <td>${escapeHtml(t.geo.label)}<br><small>${fmt(t.geo.maxKm)} km max</small></td>
-      <td>${escapeHtml(obs)}</td>
-      <td>${noteForPod(t.pod) ? escapeHtml(noteForPod(t.pod)).replace(/\n/g, '<br>') : '—'}</td>
+      <td>${escapeHtml(obs)}${noteForPod(t.pod) ? `<div class="reportObsNote"><b>Notes:</b><br>${escapeHtml(noteForPod(t.pod)).replace(/\n/g, '<br>')}</div>` : ''}</td>
     </tr>`;
   }).join('');
   return `<section class="reportPage">
     ${reportHeader('Pod Summary', 'Current totals based on the active support model allocation')}
     <table class="reportSummaryTable">
-      <thead><tr><th>Pod</th><th>Clubs</th><th>Primary Members</th><th>Other Members</th><th>Patrol Volunteers</th><th>Volunteer Hrs</th><th>PLS Hrs</th><th>Nationals Entries</th><th>Balance</th><th>Travel Spread</th><th>Observations</th><th>Notes</th></tr></thead>
+      <thead><tr><th>Pod</th><th>Clubs</th><th>Primary Members</th><th>Other Members</th><th>Patrol Volunteers</th><th>Volunteer Hrs</th><th>PLS Hrs</th><th>Nationals Entries</th><th>Balance</th><th>Travel Spread</th><th>Observations / Notes</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p class="reportNote">Balance is an objective comparison between pods using the current metrics. It does not attempt to judge club health or capability need.</p>
+    <p class="reportNote"><b>Balance Score:</b> objective comparison between pods using club count, primary members, patrol volunteers, volunteer hours, PLS hours, Nationals entries and geographic spread. It does not attempt to judge club health or capability need.</p>
   </section>`;
 }
 function buildPdfReport() {
@@ -583,7 +591,7 @@ function buildPdfReport() {
   </div>
   <div id="reportPages" class="reportPages">
     <section class="reportPage">
-      ${reportHeader('Club Support Model Designer', 'Pod allocation map')}
+      ${reportHeader('Club Support Model Pod Designer', 'Pod allocation map')}
       ${buildReportMapHtml()}
       ${buildLegendHtml()}
     </section>
