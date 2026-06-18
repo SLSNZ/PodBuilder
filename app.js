@@ -32,16 +32,56 @@ let reportMapMarkers = [];
 let draggedClubId = null;
 let selectedClubId = null;
 let podNotes = {};
+let scenarios = [];
+let activeScenarioId = 'current';
+let layoutSettings = { leftPercent: 50, topPercent: 42 };
+let scenarioMeta = { name: 'Current Allocation', description: 'Baseline working scenario', createdBy: '', created: new Date().toISOString(), updated: new Date().toISOString() };
 
-const save = () => localStorage.setItem('slsnzPodBuilder', JSON.stringify({ clubs, pods, podNotes }));
+function currentScenarioSnapshot() {
+  return {
+    id: activeScenarioId,
+    meta: { ...scenarioMeta, updated: new Date().toISOString() },
+    clubs: structuredClone(clubs),
+    pods: structuredClone(pods).filter(p => p.id !== 'unassigned').slice(0, MAX_PODS),
+    podNotes: structuredClone(podNotes || {})
+  };
+}
+function applyScenario(scenario) {
+  if (!scenario) return;
+  activeScenarioId = scenario.id;
+  scenarioMeta = { ...scenario.meta };
+  clubs = structuredClone(scenario.clubs || clubs);
+  pods = structuredClone(scenario.pods || pods).filter(p => p.id !== 'unassigned').slice(0, MAX_PODS);
+  podNotes = structuredClone(scenario.podNotes || {});
+  selectedClubId = clubs[0]?.id || selectedClubId;
+}
+function updateActiveScenario() {
+  const snap = currentScenarioSnapshot();
+  const index = scenarios.findIndex(s => s.id === activeScenarioId);
+  if (index >= 0) scenarios[index] = snap;
+  else scenarios.unshift(snap);
+}
+const save = () => {
+  if (clubs.length) updateActiveScenario();
+  localStorage.setItem('slsnzPodBuilder', JSON.stringify({ version: 11, activeScenarioId, scenarios, layoutSettings }));
+  if (typeof renderScenarioPanel === 'function') renderScenarioPanel();
+};
 const loadSaved = () => {
   const saved = localStorage.getItem('slsnzPodBuilder');
   if (!saved) return false;
   try {
     const state = JSON.parse(saved);
+    layoutSettings = state.layoutSettings || layoutSettings;
+    applyLayoutSettings();
+    if (Array.isArray(state.scenarios) && state.scenarios.length) {
+      scenarios = state.scenarios;
+      applyScenario(scenarios.find(s => s.id === state.activeScenarioId) || scenarios[0]);
+      return true;
+    }
     clubs = state.clubs;
     pods = (state.pods || pods).filter(p => p.id !== 'unassigned').slice(0, MAX_PODS);
     podNotes = state.podNotes || {};
+    scenarios = [currentScenarioSnapshot()];
     return true;
   } catch { return false; }
 };
@@ -409,45 +449,58 @@ function closePodNoteEditor() {
   document.getElementById('noteModal')?.classList.remove('is-open');
 }
 
-function renderAll(){ renderMarkers(); renderBoard(); renderSummary(); renderClubDetails(); }
+
+function scenarioLabel(scenario = { meta: scenarioMeta }) {
+  return scenario?.meta?.name || 'Untitled Scenario';
+}
+function renderScenarioPanel() {
+  const el = document.getElementById('scenarioPanel');
+  if (!el) return;
+  const active = scenarios.find(s => s.id === activeScenarioId) || currentScenarioSnapshot();
+  const updated = active.meta?.updated ? new Date(active.meta.updated).toLocaleString('en-NZ', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
+  el.innerHTML = `<div class="scenarioInfo"><label>Scenario<select id="scenarioSelect">${scenarios.map(s => `<option value="${s.id}" ${s.id === activeScenarioId ? 'selected' : ''}>${escapeHtml(scenarioLabel(s))}</option>`).join('')}</select></label><div class="scenarioText"><b>${escapeHtml(scenarioLabel(active))}</b><span>${escapeHtml(active.meta?.description || 'No description added yet.')}</span><small>Last updated ${updated}</small></div></div><div class="scenarioActions"><button id="newScenarioBtn" class="secondaryBtn">New</button><button id="duplicateScenarioBtn" class="secondaryBtn">Duplicate</button><button id="renameScenarioBtn" class="secondaryBtn">Edit info</button><button id="deleteScenarioBtn" class="secondaryBtn">Delete</button></div>`;
+  document.getElementById('scenarioSelect').addEventListener('change', e => { updateActiveScenario(); const target = scenarios.find(s => s.id === e.target.value); applyScenario(target); save(); renderAll(); alert(`Scenario loaded: ${scenarioLabel(target)}`); });
+  document.getElementById('newScenarioBtn').addEventListener('click', createNewScenario);
+  document.getElementById('duplicateScenarioBtn').addEventListener('click', duplicateScenario);
+  document.getElementById('renameScenarioBtn').addEventListener('click', editScenarioInfo);
+  document.getElementById('deleteScenarioBtn').addEventListener('click', deleteScenario);
+}
+function promptScenarioInfo(defaultName, defaultDescription = '') {
+  const name = prompt('Scenario name', defaultName || 'New Scenario');
+  if (name === null) return null;
+  const description = prompt('Scenario description', defaultDescription || '') ?? '';
+  return { name: name.trim() || 'Untitled Scenario', description: description.trim() };
+}
+function createNewScenario() { const info = promptScenarioInfo(`Scenario ${scenarios.length + 1}`, ''); if (!info) return; updateActiveScenario(); const now = new Date().toISOString(); const scenario = { id: `scenario-${Date.now()}`, meta: { ...info, created: now, updated: now }, clubs: structuredClone(clubs), pods: structuredClone(pods), podNotes: {} }; scenarios.unshift(scenario); applyScenario(scenario); save(); renderAll(); }
+function duplicateScenario() { const info = promptScenarioInfo(`${scenarioMeta.name || 'Scenario'} copy`, scenarioMeta.description || ''); if (!info) return; updateActiveScenario(); const scenario = currentScenarioSnapshot(); scenario.id = `scenario-${Date.now()}`; scenario.meta = { ...scenario.meta, ...info, created: new Date().toISOString(), updated: new Date().toISOString() }; scenarios.unshift(scenario); applyScenario(scenario); save(); renderAll(); }
+function editScenarioInfo() { const info = promptScenarioInfo(scenarioMeta.name, scenarioMeta.description || ''); if (!info) return; scenarioMeta = { ...scenarioMeta, ...info, updated: new Date().toISOString() }; save(); renderAll(); }
+function deleteScenario() { if (scenarios.length <= 1) { alert('At least one scenario is required.'); return; } if (!confirm(`Delete scenario "${scenarioMeta.name}"?`)) return; scenarios = scenarios.filter(s => s.id !== activeScenarioId); applyScenario(scenarios[0]); save(); renderAll(); }
+async function downloadJson(payload, suggestedName) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); if (window.showSaveFilePicker) { try { const handle = await window.showSaveFilePicker({ suggestedName, types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }] }); const writable = await handle.createWritable(); await writable.write(blob); await writable.close(); return; } catch (err) { if (err?.name === 'AbortError') return; } } const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = suggestedName; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+function safeFileName(name) { return String(name || 'scenario').toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'scenario'; }
+async function exportCurrentScenario() { updateActiveScenario(); const scenario = scenarios.find(s => s.id === activeScenarioId) || currentScenarioSnapshot(); await downloadJson({ fileType: 'slsnz-pod-scenario', version: 11, scenario }, `${safeFileName(scenarioLabel(scenario))}.json`); }
+async function exportWorkspace() { updateActiveScenario(); await downloadJson({ fileType: 'slsnz-pod-workspace', version: 11, activeScenarioId, scenarios, layoutSettings }, `club-support-model-pod-designer-workspace.json`); }
+async function importScenarioFile(file) { const state = JSON.parse(await file.text()); if (state.fileType === 'slsnz-pod-workspace' || Array.isArray(state.scenarios)) { const count = (state.scenarios || []).length; if (!confirm(`Import workspace with ${count} scenario${count === 1 ? '' : 's'}? This will replace the scenarios and settings currently saved in this browser.`)) return; scenarios = state.scenarios || []; layoutSettings = state.layoutSettings || layoutSettings; applyLayoutSettings(); applyScenario(scenarios.find(s => s.id === state.activeScenarioId) || scenarios[0]); save(); renderAll(); alert(`Workspace loaded: ${scenarios.length} scenario${scenarios.length === 1 ? '' : 's'}.`); return; } const scenario = state.fileType === 'slsnz-pod-scenario' ? state.scenario : { id: `scenario-${Date.now()}`, meta: { name: file.name.replace(/\.json$/i,''), description: '', created: new Date().toISOString(), updated: new Date().toISOString() }, clubs: state.clubs || state, pods: state.pods || pods, podNotes: state.podNotes || {} }; if (!confirm(`Import scenario "${scenarioLabel(scenario)}"? It will be added to your scenario list and loaded now.`)) return; scenario.id = `scenario-${Date.now()}`; scenarios.unshift(scenario); applyScenario(scenario); save(); renderAll(); alert(`Scenario loaded: ${scenarioLabel(scenario)}`); }
+function applyLayoutSettings() { const main = document.getElementById('appMain'); if (!main) return; main.style.setProperty('--left-w', `${layoutSettings.leftPercent || 50}%`); main.style.setProperty('--top-h', `${layoutSettings.topPercent || 42}%`); }
+function initResizableLayout() { applyLayoutSettings(); const main = document.getElementById('appMain'); const v = document.getElementById('verticalSplitter'); const h = document.getElementById('horizontalSplitter'); if (!main || !v || !h) return; v.addEventListener('pointerdown', e => { if (document.body.classList.contains('map-hidden')) return; e.preventDefault(); v.setPointerCapture(e.pointerId); const move = ev => { const rect = main.getBoundingClientRect(); const pct = Math.max(35, Math.min(72, ((ev.clientX - rect.left) / rect.width) * 100)); layoutSettings.leftPercent = Math.round(pct * 10) / 10; applyLayoutSettings(); refreshMapSize(); }; const up = () => { save(); v.removeEventListener('pointermove', move); v.removeEventListener('pointerup', up); }; v.addEventListener('pointermove', move); v.addEventListener('pointerup', up); }); h.addEventListener('pointerdown', e => { e.preventDefault(); h.setPointerCapture(e.pointerId); const move = ev => { const rect = main.getBoundingClientRect(); const pct = Math.max(28, Math.min(68, ((ev.clientY - rect.top) / rect.height) * 100)); layoutSettings.topPercent = Math.round(pct * 10) / 10; applyLayoutSettings(); refreshMapSize(); }; const up = () => { save(); h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); }; h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); }); }
+function updateMapToggleLabels() { const hidden = document.body.classList.contains('map-hidden'); document.getElementById('toggleMapBtn').textContent = hidden ? 'Show Map' : 'Hide Map'; document.getElementById('toggleMapBtnLocal').textContent = hidden ? 'Show Map' : 'Hide Map'; }
+function toggleMapVisibility() { document.body.classList.toggle('map-hidden'); updateMapToggleLabels(); refreshMapSize(); }
+
+function renderAll(){ renderMarkers(); renderBoard(); renderSummary(); renderClubDetails(); renderScenarioPanel(); const addBtn = document.getElementById('addPodBtn'); if (addBtn) addBtn.hidden = pods.length >= MAX_PODS; }
 
 document.getElementById('searchInput').addEventListener('input', renderAll);
 document.getElementById('sortSelect').addEventListener('change', renderBoard);
 document.getElementById('resetBtn').addEventListener('click', () => {
-  if(confirm('Clear local pod changes and reload original data?')) { localStorage.removeItem('slsnzPodBuilder'); location.reload(); }
+  if(confirm('Clear local scenarios/settings and reload original data?')) { localStorage.removeItem('slsnzPodBuilder'); location.reload(); }
 });
-document.getElementById('exportBtn').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({ pods, clubs, podNotes }, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'slsnz-pod-builder-save-file.json';
-  a.click();
-});
-document.getElementById('importInput').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const state = JSON.parse(await file.text());
-  pods = (state.pods || pods).filter(p => p.id !== 'unassigned').slice(0, MAX_PODS);
-  clubs = state.clubs || state;
-  podNotes = state.podNotes || {};
-  save();
-  renderAll();
-});
-document.getElementById('addPodBtn').addEventListener('click', () => {
-  if (pods.length >= MAX_PODS) { alert('This version is limited to 10 pods. Rename or repurpose an existing pod instead.'); return; }
-  pods.push({id:`pod-${Date.now()}`, name:`New Pod ${pods.length + 1}`, color:'#2F80ED'});
-  save();
-  renderAll();
-});
-
+document.getElementById('exportMenuBtn')?.addEventListener('click', e => { e.stopPropagation(); const menu = document.getElementById('exportMenu'); menu.hidden = !menu.hidden; });
+document.addEventListener('click', () => { const menu = document.getElementById('exportMenu'); if (menu) menu.hidden = true; });
+document.getElementById('exportScenarioBtn')?.addEventListener('click', exportCurrentScenario);
+document.getElementById('exportWorkspaceBtn')?.addEventListener('click', exportWorkspace);
+document.getElementById('importInput').addEventListener('change', async e => { const file = e.target.files[0]; if (!file) return; try { await importScenarioFile(file); } catch (err) { alert('That file could not be imported. Please check it is a valid scenario or workspace JSON file.'); console.error(err); } e.target.value = ''; });
+document.getElementById('addPodBtn').addEventListener('click', () => { if (pods.length >= MAX_PODS) { alert('This version is limited to 10 pods. Rename or repurpose an existing pod instead.'); return; } pods.push({id:`pod-${Date.now()}`, name:`New Pod ${pods.length + 1}`, color:'#2F80ED'}); save(); renderAll(); });
 function refreshMapSize() { setTimeout(() => map?.invalidateSize(), 150); }
-
-document.getElementById('toggleMapBtn').addEventListener('click', () => {
-  const hidden = document.body.classList.toggle('map-hidden');
-  document.getElementById('toggleMapBtn').textContent = hidden ? 'Show Map' : 'Hide Map';
-  refreshMapSize();
-});
-
+document.getElementById('toggleMapBtn')?.addEventListener('click', toggleMapVisibility);
+document.getElementById('toggleMapBtnLocal')?.addEventListener('click', toggleMapVisibility);
 document.querySelectorAll('.expandBtn').forEach(button => button.addEventListener('click', e => {
   const panel = document.getElementById(e.currentTarget.dataset.panel);
   const isFull = panel.classList.toggle('is-fullscreen');
@@ -459,8 +512,12 @@ document.querySelectorAll('.expandBtn').forEach(button => button.addEventListene
 
 (async function start(){
   initMap();
-  if (!loadSaved()) { clubs = await fetch('clubs.json').then(r => r.json()); }
+  initResizableLayout();
+  if (!loadSaved()) { clubs = await fetch('clubs.json').then(r => r.json()); scenarios = [currentScenarioSnapshot()]; save(); }
+  if (!scenarios.length) scenarios = [currentScenarioSnapshot()];
   selectedClubId = clubs[0]?.id || null;
+  applyLayoutSettings();
+  updateMapToggleLabels();
   renderAll();
 })();
 
@@ -475,7 +532,7 @@ function reportDate() {
 function reportHeader(title, subtitle = '') {
   return `<div class="reportHeader">
     <div><h1>${escapeHtml(title)}</h1>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}</div>
-    <div class="reportMeta">Club Support Model Pod Designer<br>Generated ${reportDate()}</div>
+    <div class="reportMeta">Club Support Model Pod Designer<br>${escapeHtml(scenarioMeta.name || 'Current scenario')}<br>Generated ${reportDate()}</div>
   </div>`;
 }
 
@@ -529,7 +586,7 @@ function renderReportLeafletMap() {
     bounds.push([club.lat, club.lng]);
   });
 
-  if (bounds.length) reportMap.fitBounds(bounds, { padding: [35, 35] });
+  if (bounds.length) reportMap.fitBounds(bounds, { padding: [8, 8], maxZoom: 6 });
   setTimeout(() => reportMap?.invalidateSize(), 250);
 }
 
@@ -590,7 +647,7 @@ function buildPdfReport() {
     <div class="reportToolbarActions"><button id="printReportBtn" type="button">Print / Save PDF</button><button id="closeReportBtn" type="button">Close</button></div>
   </div>
   <div id="reportPages" class="reportPages">
-    <section class="reportPage">
+    <section class="reportPage reportMapPage">
       ${reportHeader('Club Support Model Pod Designer', 'Pod allocation map')}
       ${buildReportMapHtml()}
       ${buildLegendHtml()}

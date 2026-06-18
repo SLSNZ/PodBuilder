@@ -15,19 +15,26 @@
     </div>
     <div class="actions">
       <button id="toggleMapBtn">Hide Map</button>
-      <button id="addPodBtn">Add Pod</button>
       <button id="resetBtn">Reset</button>
-      <button id="exportBtn">Save File</button>
+      <div class="menuWrap">
+        <button id="exportMenuBtn">Export ▾</button>
+        <div id="exportMenu" class="menuPanel" hidden>
+          <button id="exportScenarioBtn">Export current scenario</button>
+          <button id="exportWorkspaceBtn">Export all scenarios & settings</button>
+        </div>
+      </div>
       <button id="pdfBtn">Export PDF</button>
       <label class="importBtn">Import File<input id="importInput" type="file" accept="application/json" hidden></label>
     </div>
   </header>
 
-  <main>
+  <section id="scenarioPanel" class="scenarioPanel"></section>
+
+  <main id="appMain">
     <section class="mapPanel panel" id="mapPanel">
       <div class="panelHeader">
         <h2>Club Map</h2>
-        <button class="expandBtn" data-panel="mapPanel">Full Screen</button>
+        <div class="panelHeaderActions"><button id="toggleMapBtnLocal" class="secondaryBtn">Hide Map</button><button class="expandBtn" data-panel="mapPanel">Full Screen</button></div>
       </div>
       <div class="mapBody">
         <div id="map"></div>
@@ -35,6 +42,7 @@
       </div>
     </section>
 
+    <div id="verticalSplitter" class="splitter verticalSplitter" title="Drag to resize map and summary"></div>
     <section class="summaryPanel panel" id="summaryPanel">
       <div class="panelHeader">
         <h2>Pod Summary</h2>
@@ -43,9 +51,10 @@
       <div id="summary"></div>
     </section>
 
+    <div id="horizontalSplitter" class="splitter horizontalSplitter" title="Drag to resize top and bottom sections"></div>
     <section class="boardPanel panel" id="boardPanel">
       <div class="boardHeader panelHeader">
-        <h2>Pod Planner</h2>
+        <div class="podPlannerTitle"><h2>Pod Planner</h2><button id="addPodBtn" class="secondaryBtn">Add Pod</button></div>
         <div class="boardControls">
           <input id="searchInput" placeholder="Search clubs..." />
           <select id="sortSelect" title="Sort clubs">

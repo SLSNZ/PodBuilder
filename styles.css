@@ -230,3 +230,58 @@ body.map-hidden #summary .summaryGridV2 { grid-template-columns: 1fr; }
 /* v10 naming and insights refinements */
 .scoreBadgeWrap small { font-size: 9px; color: #627d98; font-weight: 700; white-space: nowrap; }
 .insightBox summary { color: #005f83; }
+
+/* v11 scenario manager, export dropdown and resizable layout */
+header { height: 60px; }
+.scenarioPanel {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: #ffffff;
+  border-bottom: 1px solid #d9e2ec;
+}
+.scenarioInfo { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.scenarioInfo label { font-size: 11px; font-weight: 800; color: #52616b; display: flex; flex-direction: column; gap: 2px; }
+.scenarioInfo select { min-width: 200px; padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 7px; font: inherit; font-size: 12px; }
+.scenarioText { display: flex; flex-direction: column; min-width: 0; }
+.scenarioText b { color: #102a43; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 440px; }
+.scenarioText span { color: #52616b; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 520px; }
+.scenarioText small { color: #8a9ba8; font-size: 10px; }
+.scenarioActions { display: flex; gap: 6px; }
+.secondaryBtn { background: #eef6fa; color: #005f83; padding: 5px 8px; font-size: 11px; border-radius: 7px; }
+.menuWrap { position: relative; }
+.menuPanel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 1000; min-width: 210px; background: white; border: 1px solid #d9e2ec; border-radius: 10px; padding: 6px; box-shadow: 0 8px 24px rgba(16,42,67,.18); }
+.menuPanel button { display: block; width: 100%; text-align: left; background: white; color: #102a43; border-radius: 7px; padding: 8px 9px; }
+.menuPanel button:hover { background: #eef6fa; color: #005f83; }
+#appMain { --left-w: 50%; --top-h: 42%; height: calc(100vh - 114px); grid-template-columns: minmax(360px, var(--left-w)) 8px minmax(320px, 1fr); grid-template-rows: minmax(230px, var(--top-h)) 8px minmax(250px, 1fr); gap: 0; padding: 10px; }
+.mapPanel { grid-column: 1; grid-row: 1; margin-right: 0; }
+.verticalSplitter { grid-column: 2; grid-row: 1; cursor: col-resize; }
+.summaryPanel { grid-column: 3; grid-row: 1; margin-left: 0; }
+.horizontalSplitter { grid-column: 1 / 4; grid-row: 2; cursor: row-resize; }
+.boardPanel { grid-column: 1 / 4; grid-row: 3; }
+.splitter { position: relative; z-index: 20; }
+.splitter::after { content: ''; position: absolute; inset: 2px; border-radius: 999px; background: transparent; transition: background .12s ease; }
+.splitter:hover::after { background: #b8dce8; }
+.panel { margin: 0; }
+.panelHeaderActions, .podPlannerTitle { display: flex; align-items: center; gap: 7px; }
+.podPlannerTitle h2 { margin: 0; }
+body.map-hidden #appMain { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 35%) 8px minmax(300px, 1fr); }
+body.map-hidden .mapPanel, body.map-hidden .verticalSplitter { display: none; }
+body.map-hidden .summaryPanel { grid-column: 1; grid-row: 1; }
+body.map-hidden .horizontalSplitter { grid-column: 1; grid-row: 2; }
+body.map-hidden .boardPanel { grid-column: 1; grid-row: 3; }
+body.panel-fullscreen .scenarioPanel, body.panel-fullscreen .splitter { display: none !important; }
+
+/* v11 portrait report map */
+.reportPages .reportPage { width: 210mm; min-height: 277mm; }
+.reportMapPage .reportMapWrap { height: 235mm; }
+.reportMapPage .reportLeafletMap { height: 235mm; }
+.reportMapPage .reportLegend { grid-template-columns: repeat(2, 1fr); font-size: 10px; margin-top: 8px; }
+.reportMapPage .reportHeader { margin-bottom: 8px; }
+@media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  .reportMapPage .reportMapWrap, .reportMapPage .reportLeafletMap { height: 235mm !important; }
+}
