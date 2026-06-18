@@ -15,12 +15,27 @@
     </div>
     <div class="actions">
       <button id="toggleMapBtn">Hide Map</button>
-      <button id="resetBtn">Reset</button>
+      <div class="menuWrap">
+        <button id="resetMenuBtn">Reset ▾</button>
+        <div id="resetMenu" class="menuPanel" hidden>
+          <button id="resetViewBtn">Reset view settings</button>
+          <button id="resetAllBtn">Reset all settings and allocations</button>
+        </div>
+      </div>
       <div class="menuWrap">
         <button id="exportMenuBtn">Export ▾</button>
         <div id="exportMenu" class="menuPanel" hidden>
           <button id="exportScenarioBtn">Export current scenario</button>
           <button id="exportWorkspaceBtn">Export all scenarios & settings</button>
+        </div>
+      </div>
+      <div class="menuWrap">
+        <button id="layoutsBtn">Layouts ▾</button>
+        <div id="layoutsMenu" class="menuPanel" hidden>
+          <button data-layout="default">Default: all sections</button>
+          <button data-layout="summaryPlanner">Summary over planner</button>
+          <button data-layout="mapSummary">Map + summary</button>
+          <button data-layout="mapPlanner">Map + planner</button>
         </div>
       </div>
       <button id="pdfBtn">Export PDF</button>

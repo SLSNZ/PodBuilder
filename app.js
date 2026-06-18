@@ -34,7 +34,7 @@ let selectedClubId = null;
 let podNotes = {};
 let scenarios = [];
 let activeScenarioId = 'current';
-let layoutSettings = { leftPercent: 50, topPercent: 42 };
+let layoutSettings = { leftPercent: 50, topPercent: 42, layoutMode: 'default' };
 let scenarioMeta = { name: 'Current Allocation', description: 'Baseline working scenario', createdBy: '', created: new Date().toISOString(), updated: new Date().toISOString() };
 
 function currentScenarioSnapshot() {
@@ -63,7 +63,7 @@ function updateActiveScenario() {
 }
 const save = () => {
   if (clubs.length) updateActiveScenario();
-  localStorage.setItem('slsnzPodBuilder', JSON.stringify({ version: 11, activeScenarioId, scenarios, layoutSettings }));
+  localStorage.setItem('slsnzPodBuilder', JSON.stringify({ version: 13, activeScenarioId, scenarios, layoutSettings }));
   if (typeof renderScenarioPanel === 'function') renderScenarioPanel();
 };
 const loadSaved = () => {
@@ -189,6 +189,47 @@ function renderClubDetails() {
     </div>`;
 }
 
+
+function clubInfoHtml(club) {
+  const pod = podFor(club);
+  return `<div class="clubInfoPopup" style="--pod:${pod.color}">
+    <div class="podBadge">${escapeHtml(pod.name)}</div>
+    <div class="detailGrid compactDetails">
+      <div class="detailItem"><span>Club size</span><b>${escapeHtml(club.clubSize || '—')}</b></div>
+      <div class="detailItem"><span>Total patrol hours</span><b>${escapeHtml(club.totalPatrolHoursCategory || '—')}</b></div>
+      <div class="detailItem"><span>Location type</span><b>${escapeHtml(club.locationType || '—')}</b></div>
+      <div class="detailItem"><span>Club maturity</span><b>${escapeHtml(club.clubMaturity || '—')}</b></div>
+      <div class="detailItem"><span>Operational effectiveness</span><b>${escapeHtml(club.operationalEffectiveness || '—')}</b></div>
+      <div class="detailItem"><span>SAR capability</span><b>${escapeHtml(club.sarCapability || '—')}</b></div>
+      <div class="detailItem"><span>Primary members</span><b>${fmt(club.primaryMembers)}</b></div>
+      <div class="detailItem"><span>Patrol volunteers</span><b>${fmt(club.patrollingVolunteers)}</b></div>
+      <div class="detailItem"><span>Volunteer hours</span><b>${fmt(club.volunteerPatrolHours)}</b></div>
+      <div class="detailItem"><span>PLS hours</span><b>${fmt(club.plsPatrolHours)}</b></div>
+      <div class="detailItem"><span>Nationals Entries</span><b>${fmt(club.nationsEntries)}</b></div>
+    </div>
+  </div>`;
+}
+function openClubInfoPopup(id) {
+  const club = clubs.find(c => c.id === id);
+  if (!club) return;
+  let modal = document.getElementById('clubInfoModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'clubInfoModal';
+    modal.className = 'noteModal clubInfoModal';
+    modal.innerHTML = `<div class="noteModalCard clubInfoModalCard">
+      <div class="noteModalHeader"><h3 id="clubInfoTitle">Club info</h3><button id="closeClubInfoModal" type="button">×</button></div>
+      <div id="clubInfoContent"></div>
+    </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('closeClubInfoModal').onclick = () => modal.classList.remove('is-open');
+    modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('is-open'); });
+  }
+  document.getElementById('clubInfoTitle').textContent = club.name;
+  document.getElementById('clubInfoContent').innerHTML = clubInfoHtml(club);
+  modal.classList.add('is-open');
+}
+
 function renderFilterBar() {
   const el = document.getElementById('filterBar');
   if (!el || el.dataset.ready) return;
@@ -198,7 +239,7 @@ function renderFilterBar() {
   }).join('') + '<button class="clearFiltersBtn" id="clearFiltersBtn">Clear filters</button>';
   el.dataset.ready = '1';
   FILTER_FIELDS.forEach(([field]) => document.getElementById(`filter-${field}`).addEventListener('change', renderAll));
-  document.getElementById('clearFiltersBtn').addEventListener('click', () => { FILTER_FIELDS.forEach(([field]) => document.getElementById(`filter-${field}`).value = ''); renderAll(); });
+  document.getElementById('clearFiltersBtn').addEventListener('click', () => { FILTER_FIELDS.forEach(([field]) => document.getElementById(`filter-${field}`).value = ''); const search = document.getElementById('searchInput'); if (search) search.value = ''; renderAll(); });
 }
 
 function renderBoard() {
@@ -234,7 +275,7 @@ function renderBoard() {
       card.draggable = true;
       card.dataset.clubId = club.id;
       card.style.setProperty('--pod', pod.color);
-      card.innerHTML = `${club.name}<small>${club.clubSize || club.locationType || 'Club'}</small>`;
+      card.innerHTML = `<div class="clubCardMain"><span>${escapeHtml(club.name)}</span><button class="clubInfoBtn" data-info-club="${escapeHtml(club.id)}" title="Club info" type="button">i</button></div><small>${escapeHtml(club.clubSize || club.locationType || 'Club')}</small>`;
       card.addEventListener('dragstart', () => draggedClubId = club.id);
       card.addEventListener('click', () => selectClub(club.id, true));
       col.appendChild(card);
@@ -458,10 +499,18 @@ function renderScenarioPanel() {
   if (!el) return;
   const active = scenarios.find(s => s.id === activeScenarioId) || currentScenarioSnapshot();
   const updated = active.meta?.updated ? new Date(active.meta.updated).toLocaleString('en-NZ', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
-  el.innerHTML = `<div class="scenarioInfo"><label>Scenario<select id="scenarioSelect">${scenarios.map(s => `<option value="${s.id}" ${s.id === activeScenarioId ? 'selected' : ''}>${escapeHtml(scenarioLabel(s))}</option>`).join('')}</select></label><div class="scenarioText"><b>${escapeHtml(scenarioLabel(active))}</b><span>${escapeHtml(active.meta?.description || 'No description added yet.')}</span><small>Last updated ${updated}</small></div></div><div class="scenarioActions"><button id="newScenarioBtn" class="secondaryBtn">New</button><button id="duplicateScenarioBtn" class="secondaryBtn">Duplicate</button><button id="renameScenarioBtn" class="secondaryBtn">Edit info</button><button id="deleteScenarioBtn" class="secondaryBtn">Delete</button></div>`;
-  document.getElementById('scenarioSelect').addEventListener('change', e => { updateActiveScenario(); const target = scenarios.find(s => s.id === e.target.value); applyScenario(target); save(); renderAll(); alert(`Scenario loaded: ${scenarioLabel(target)}`); });
-  document.getElementById('newScenarioBtn').addEventListener('click', createNewScenario);
-  document.getElementById('duplicateScenarioBtn').addEventListener('click', duplicateScenario);
+  el.innerHTML = `<div class="scenarioInfo"><label>Scenario<select id="scenarioSelect"><option value="__new">New Scenario +</option><option value="__import">Import from file</option><option disabled>────────────</option>${scenarios.map(s => `<option value="${s.id}" ${s.id === activeScenarioId ? 'selected' : ''}>${escapeHtml(scenarioLabel(s))}</option>`).join('')}</select></label><div class="scenarioText"><b>${escapeHtml(scenarioLabel(active))}</b><span>${escapeHtml(active.meta?.description || 'No description added yet.')}</span><small>Last updated ${updated}</small></div></div><div class="scenarioActions"><button id="renameScenarioBtn" class="secondaryBtn">Edit info</button><button id="deleteScenarioBtn" class="secondaryBtn">Delete</button></div>`;
+  document.getElementById('scenarioSelect').addEventListener('change', e => {
+    const value = e.target.value;
+    if (value === '__new') { e.target.value = activeScenarioId; createNewScenario(); return; }
+    if (value === '__import') { e.target.value = activeScenarioId; document.getElementById('importInput')?.click(); return; }
+    updateActiveScenario();
+    const target = scenarios.find(s => s.id === value);
+    applyScenario(target);
+    save();
+    renderAll();
+    alert(`Scenario loaded: ${scenarioLabel(target)}`);
+  });
   document.getElementById('renameScenarioBtn').addEventListener('click', editScenarioInfo);
   document.getElementById('deleteScenarioBtn').addEventListener('click', deleteScenario);
 }
@@ -477,23 +526,48 @@ function editScenarioInfo() { const info = promptScenarioInfo(scenarioMeta.name,
 function deleteScenario() { if (scenarios.length <= 1) { alert('At least one scenario is required.'); return; } if (!confirm(`Delete scenario "${scenarioMeta.name}"?`)) return; scenarios = scenarios.filter(s => s.id !== activeScenarioId); applyScenario(scenarios[0]); save(); renderAll(); }
 async function downloadJson(payload, suggestedName) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); if (window.showSaveFilePicker) { try { const handle = await window.showSaveFilePicker({ suggestedName, types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }] }); const writable = await handle.createWritable(); await writable.write(blob); await writable.close(); return; } catch (err) { if (err?.name === 'AbortError') return; } } const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = suggestedName; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
 function safeFileName(name) { return String(name || 'scenario').toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'scenario'; }
-async function exportCurrentScenario() { updateActiveScenario(); const scenario = scenarios.find(s => s.id === activeScenarioId) || currentScenarioSnapshot(); await downloadJson({ fileType: 'slsnz-pod-scenario', version: 11, scenario }, `${safeFileName(scenarioLabel(scenario))}.json`); }
-async function exportWorkspace() { updateActiveScenario(); await downloadJson({ fileType: 'slsnz-pod-workspace', version: 11, activeScenarioId, scenarios, layoutSettings }, `club-support-model-pod-designer-workspace.json`); }
+async function exportCurrentScenario() { updateActiveScenario(); const scenario = scenarios.find(s => s.id === activeScenarioId) || currentScenarioSnapshot(); await downloadJson({ fileType: 'slsnz-pod-scenario', version: 13, scenario }, `${safeFileName(scenarioLabel(scenario))}.json`); }
+async function exportWorkspace() { updateActiveScenario(); await downloadJson({ fileType: 'slsnz-pod-workspace', version: 13, activeScenarioId, scenarios, layoutSettings }, `club-support-model-pod-designer-workspace.json`); }
 async function importScenarioFile(file) { const state = JSON.parse(await file.text()); if (state.fileType === 'slsnz-pod-workspace' || Array.isArray(state.scenarios)) { const count = (state.scenarios || []).length; if (!confirm(`Import workspace with ${count} scenario${count === 1 ? '' : 's'}? This will replace the scenarios and settings currently saved in this browser.`)) return; scenarios = state.scenarios || []; layoutSettings = state.layoutSettings || layoutSettings; applyLayoutSettings(); applyScenario(scenarios.find(s => s.id === state.activeScenarioId) || scenarios[0]); save(); renderAll(); alert(`Workspace loaded: ${scenarios.length} scenario${scenarios.length === 1 ? '' : 's'}.`); return; } const scenario = state.fileType === 'slsnz-pod-scenario' ? state.scenario : { id: `scenario-${Date.now()}`, meta: { name: file.name.replace(/\.json$/i,''), description: '', created: new Date().toISOString(), updated: new Date().toISOString() }, clubs: state.clubs || state, pods: state.pods || pods, podNotes: state.podNotes || {} }; if (!confirm(`Import scenario "${scenarioLabel(scenario)}"? It will be added to your scenario list and loaded now.`)) return; scenario.id = `scenario-${Date.now()}`; scenarios.unshift(scenario); applyScenario(scenario); save(); renderAll(); alert(`Scenario loaded: ${scenarioLabel(scenario)}`); }
-function applyLayoutSettings() { const main = document.getElementById('appMain'); if (!main) return; main.style.setProperty('--left-w', `${layoutSettings.leftPercent || 50}%`); main.style.setProperty('--top-h', `${layoutSettings.topPercent || 42}%`); }
+function applyLayoutSettings() { const main = document.getElementById('appMain'); if (!main) return; main.style.setProperty('--left-w', `${layoutSettings.leftPercent || 50}%`); main.style.setProperty('--top-h', `${layoutSettings.topPercent || 42}%`); applyLayoutMode(); }
 function initResizableLayout() { applyLayoutSettings(); const main = document.getElementById('appMain'); const v = document.getElementById('verticalSplitter'); const h = document.getElementById('horizontalSplitter'); if (!main || !v || !h) return; v.addEventListener('pointerdown', e => { if (document.body.classList.contains('map-hidden')) return; e.preventDefault(); v.setPointerCapture(e.pointerId); const move = ev => { const rect = main.getBoundingClientRect(); const pct = Math.max(35, Math.min(72, ((ev.clientX - rect.left) / rect.width) * 100)); layoutSettings.leftPercent = Math.round(pct * 10) / 10; applyLayoutSettings(); refreshMapSize(); }; const up = () => { save(); v.removeEventListener('pointermove', move); v.removeEventListener('pointerup', up); }; v.addEventListener('pointermove', move); v.addEventListener('pointerup', up); }); h.addEventListener('pointerdown', e => { e.preventDefault(); h.setPointerCapture(e.pointerId); const move = ev => { const rect = main.getBoundingClientRect(); const pct = Math.max(28, Math.min(68, ((ev.clientY - rect.top) / rect.height) * 100)); layoutSettings.topPercent = Math.round(pct * 10) / 10; applyLayoutSettings(); refreshMapSize(); }; const up = () => { save(); h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); }; h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); }); }
-function updateMapToggleLabels() { const hidden = document.body.classList.contains('map-hidden'); document.getElementById('toggleMapBtn').textContent = hidden ? 'Show Map' : 'Hide Map'; document.getElementById('toggleMapBtnLocal').textContent = hidden ? 'Show Map' : 'Hide Map'; }
-function toggleMapVisibility() { document.body.classList.toggle('map-hidden'); updateMapToggleLabels(); refreshMapSize(); }
+function updateMapToggleLabels() { const hidden = document.body.classList.contains('map-hidden'); ['toggleMapBtn','toggleMapBtnLocal'].forEach(id => { const btn = document.getElementById(id); if (!btn) return; btn.textContent = hidden ? 'Show Map' : 'Hide Map'; btn.classList.toggle('showMapEmphasis', hidden); }); }
+function toggleMapVisibility() { const nextHidden = !document.body.classList.contains('map-hidden'); layoutSettings.layoutMode = nextHidden ? 'summaryPlanner' : 'default'; setLayoutMode(layoutSettings.layoutMode); }
+
+function setLayoutMode(mode) {
+  layoutSettings.layoutMode = mode || 'default';
+  document.body.classList.toggle('map-hidden', mode === 'summaryPlanner');
+  document.body.classList.toggle('layout-map-summary', mode === 'mapSummary');
+  document.body.classList.toggle('layout-map-planner', mode === 'mapPlanner');
+  document.body.classList.toggle('layout-default', !mode || mode === 'default');
+  if (mode === 'mapSummary' || mode === 'mapPlanner') document.body.classList.remove('map-hidden');
+  updateMapToggleLabels();
+  applyLayoutSettings();
+  refreshMapSize();
+  save();
+}
+function applyLayoutMode() {
+  const mode = layoutSettings.layoutMode || 'default';
+  document.body.classList.toggle('map-hidden', mode === 'summaryPlanner');
+  document.body.classList.toggle('layout-map-summary', mode === 'mapSummary');
+  document.body.classList.toggle('layout-map-planner', mode === 'mapPlanner');
+  document.body.classList.toggle('layout-default', mode === 'default');
+}
+
 
 function renderAll(){ renderMarkers(); renderBoard(); renderSummary(); renderClubDetails(); renderScenarioPanel(); const addBtn = document.getElementById('addPodBtn'); if (addBtn) addBtn.hidden = pods.length >= MAX_PODS; }
 
 document.getElementById('searchInput').addEventListener('input', renderAll);
 document.getElementById('sortSelect').addEventListener('change', renderBoard);
-document.getElementById('resetBtn').addEventListener('click', () => {
-  if(confirm('Clear local scenarios/settings and reload original data?')) { localStorage.removeItem('slsnzPodBuilder'); location.reload(); }
+document.getElementById('resetMenuBtn')?.addEventListener('click', e => { e.stopPropagation(); const menu = document.getElementById('resetMenu'); menu.hidden = !menu.hidden; });
+document.getElementById('resetViewBtn')?.addEventListener('click', () => { layoutSettings = { leftPercent: 50, topPercent: 42, layoutMode: 'default' }; document.body.classList.remove('map-hidden','layout-map-summary','layout-map-planner'); applyLayoutSettings(); updateMapToggleLabels(); save(); refreshMapSize(); });
+document.getElementById('resetAllBtn')?.addEventListener('click', () => {
+  if(confirm('Reset all settings and allocations? This clears local scenarios/settings and reloads the original data.')) { localStorage.removeItem('slsnzPodBuilder'); location.reload(); }
 });
 document.getElementById('exportMenuBtn')?.addEventListener('click', e => { e.stopPropagation(); const menu = document.getElementById('exportMenu'); menu.hidden = !menu.hidden; });
-document.addEventListener('click', () => { const menu = document.getElementById('exportMenu'); if (menu) menu.hidden = true; });
+document.getElementById('layoutsBtn')?.addEventListener('click', e => { e.stopPropagation(); const menu = document.getElementById('layoutsMenu'); menu.hidden = !menu.hidden; });
+document.querySelectorAll('[data-layout]').forEach(btn => btn.addEventListener('click', e => setLayoutMode(e.currentTarget.dataset.layout)));
+document.addEventListener('click', () => { ['exportMenu','resetMenu','layoutsMenu'].forEach(id => { const menu = document.getElementById(id); if (menu) menu.hidden = true; }); });
 document.getElementById('exportScenarioBtn')?.addEventListener('click', exportCurrentScenario);
 document.getElementById('exportWorkspaceBtn')?.addEventListener('click', exportWorkspace);
 document.getElementById('importInput').addEventListener('change', async e => { const file = e.target.files[0]; if (!file) return; try { await importScenarioFile(file); } catch (err) { alert('That file could not be imported. Please check it is a valid scenario or workspace JSON file.'); console.error(err); } e.target.value = ''; });
@@ -664,7 +738,7 @@ function openReportPreview() {
   overlay.setAttribute('aria-hidden', 'false');
   document.getElementById('printReportBtn')?.addEventListener('click', () => {
     reportMap?.invalidateSize();
-    setTimeout(() => window.print(), 250);
+    setTimeout(() => { reportMap?.invalidateSize(); window.print(); }, 600);
   });
   document.getElementById('closeReportBtn')?.addEventListener('click', closeReportPreview);
   setTimeout(renderReportLeafletMap, 100);
