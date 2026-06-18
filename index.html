@@ -28,7 +28,10 @@
         <h2>Club Map</h2>
         <button class="expandBtn" data-panel="mapPanel">Full Screen</button>
       </div>
-      <div id="map"></div>
+      <div class="mapBody">
+        <div id="map"></div>
+        <aside id="clubDetails" class="clubDetails"></aside>
+      </div>
     </section>
 
     <section class="summaryPanel panel" id="summaryPanel">
@@ -44,9 +47,18 @@
         <h2>Pod Planner</h2>
         <div class="boardControls">
           <input id="searchInput" placeholder="Search clubs..." />
+          <select id="sortSelect" title="Sort clubs">
+            <option value="name">Sort: Club name</option>
+            <option value="primaryMembersDesc">Sort: Primary members ↓</option>
+            <option value="volunteerPatrolHoursDesc">Sort: Volunteer hrs ↓</option>
+            <option value="plsPatrolHoursDesc">Sort: PLS hrs ↓</option>
+            <option value="clubSize">Sort: Club size</option>
+          </select>
+          <button id="toggleFiltersBtn">Filters</button>
           <button class="expandBtn" data-panel="boardPanel">Full Screen</button>
         </div>
       </div>
+      <div id="filterBar" class="filterBar" hidden></div>
       <div id="board" class="board"></div>
     </section>
   </main>

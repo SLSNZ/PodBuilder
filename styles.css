@@ -5,14 +5,22 @@ header { height: 82px; display: flex; justify-content: space-between; gap: 16px;
 h1 { margin: 0 0 4px; font-size: 24px; }
 p { margin: 0; opacity: .9; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-button, .importBtn { border: 0; background: white; color: #005f83; padding: 9px 12px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+button, .importBtn { border: 0; background: white; color: #005f83; padding: 9px 12px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 14px; line-height: 1.2; font-family: inherit; }
 main { height: calc(100vh - 82px); display: grid; grid-template-columns: 1.25fr .75fr; grid-template-rows: minmax(310px, 47%) minmax(260px, 1fr); gap: 12px; padding: 12px; }
 .panel { background: white; border-radius: 14px; box-shadow: 0 5px 18px rgba(0,0,0,.08); overflow: hidden; min-height: 0; }
 .panelHeader { height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #edf2f7; flex: 0 0 auto; }
 .panelHeader h2 { margin: 0; font-size: 18px; }
 .expandBtn, .removePodBtn { background: #eef6fa; color: #005f83; padding: 6px 9px; font-size: 12px; }
 .mapPanel { min-height: 310px; display: flex; flex-direction: column; }
-#map { width: 100%; height: calc(100% - 44px); min-height: 260px; }
+.mapBody { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; }
+#map { width: 100%; height: 100%; min-height: 260px; }
+.clubDetails { border-left: 1px solid #edf2f7; background: #fbfdff; padding: 14px; overflow: auto; font-size: 13px; }
+.clubDetails h3 { margin: 0 0 4px; color: #005f83; font-size: 17px; }
+.clubDetails .podBadge { display: inline-block; margin: 5px 0 12px; padding: 4px 8px; border-radius: 999px; background: var(--pod); color: white; font-weight: 700; }
+.clubDetails .detailGrid { display: grid; grid-template-columns: 1fr; gap: 7px; }
+.clubDetails .detailItem { padding: 8px; border-radius: 8px; background: #f1f5f9; }
+.clubDetails .detailItem span { display: block; font-size: 11px; opacity: .72; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
+.clubDetails .emptyState { color: #52616b; line-height: 1.4; }
 .summaryPanel { display: flex; flex-direction: column; }
 #summary { flex: 1 1 auto; overflow: auto; padding: 0 14px 14px; }
 .summaryCard { border-left: 6px solid var(--pod); padding: 9px 11px; margin: 8px 0; background: #f8fafc; border-radius: 10px; }
@@ -21,7 +29,12 @@ main { height: calc(100vh - 82px); display: grid; grid-template-columns: 1.25fr 
 .boardPanel { grid-column: 1 / -1; padding: 0; min-height: 0; display: flex; flex-direction: column; }
 .boardHeader { margin-bottom: 0; }
 .boardControls { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
-#searchInput { width: 280px; max-width: 45vw; padding: 9px; border: 1px solid #ccd6dd; border-radius: 8px; }
+#searchInput { width: 230px; max-width: 28vw; padding: 9px; border: 1px solid #ccd6dd; border-radius: 8px; }
+#sortSelect, .filterBar select { padding: 9px; border: 1px solid #ccd6dd; border-radius: 8px; background: white; color: #102a43; }
+#toggleFiltersBtn { background: #eef6fa; color: #005f83; }
+.filterBar { flex: 0 0 auto; display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)) auto; gap: 8px; padding: 10px 16px 0; align-items: end; }
+.filterBar label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; font-weight: 700; color: #52616b; }
+.clearFiltersBtn { background: #eef6fa; color: #005f83; align-self: end; white-space: nowrap; }
 .board { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(var(--pod-count), minmax(0, 1fr)); gap: 10px; overflow: hidden; padding: 14px 16px; }
 .podColumn { min-width: 0; background: #eef3f6; border-radius: 12px; padding: 8px; border-top: 8px solid var(--pod); min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .podTitle { display: flex; justify-content: space-between; align-items: center; gap: 5px; margin-bottom: 7px; font-weight: 800; position: sticky; top: -8px; background: #eef3f6; padding: 4px 0 6px; z-index: 2; }
@@ -44,7 +57,8 @@ body.map-hidden .summaryGrid { grid-template-columns: 1fr; }
 body.panel-fullscreen header { display: none; }
 body.panel-fullscreen main { height: 100vh; padding: 0; display: block; }
 .panel.is-fullscreen { position: fixed; inset: 0; z-index: 10000; border-radius: 0; display: flex !important; flex-direction: column; }
-.panel.is-fullscreen #map { height: calc(100vh - 44px); }
+.panel.is-fullscreen .mapBody { height: calc(100vh - 44px); grid-template-columns: minmax(0, 1fr) 340px; }
+.panel.is-fullscreen #map { height: 100%; }
 .panel.is-fullscreen #summary { padding: 14px; }
 .panel.is-fullscreen .board { padding: 14px 16px; }
 .panel:not(.is-fullscreen).hidden-while-fullscreen { display: none; }
@@ -56,3 +70,6 @@ body.panel-fullscreen main { height: 100vh; padding: 0; display: block; }
   .board { overflow-x: auto; grid-template-columns: repeat(var(--pod-count), 170px); }
 }
 @media (max-width: 900px) { header { height: auto; align-items: flex-start; flex-direction: column; } main { height: auto; } }
+
+.clubCard.is-selected { outline: 3px solid rgba(0,95,131,.35); }
+@media (max-width: 1200px) { .mapBody { grid-template-columns: 1fr; } .clubDetails { display: none; } .filterBar { grid-template-columns: repeat(2, minmax(150px, 1fr)); } #sortSelect { max-width: 180px; } }
