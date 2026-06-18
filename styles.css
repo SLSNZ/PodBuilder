@@ -73,3 +73,37 @@ body.panel-fullscreen main { height: 100vh; padding: 0; display: block; }
 
 .clubCard.is-selected { outline: 3px solid rgba(0,95,131,.35); }
 @media (max-width: 1200px) { .mapBody { grid-template-columns: 1fr; } .clubDetails { display: none; } .filterBar { grid-template-columns: repeat(2, minmax(150px, 1fr)); } #sortSelect { max-width: 180px; } }
+
+#reportView { display: none; }
+.reportPage { background: white; color: #102a43; }
+.reportHeader { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; border-bottom: 2px solid #005f83; padding-bottom: 10px; margin-bottom: 14px; }
+.reportHeader h1 { color: #005f83; font-size: 24px; margin: 0 0 3px; }
+.reportHeader p { color: #52616b; opacity: 1; font-size: 12px; }
+.reportMeta { text-align: right; font-size: 11px; color: #52616b; }
+.reportMapWrap { border: 1px solid #d9e2ec; border-radius: 12px; overflow: hidden; background: #eef8fb; }
+.reportLegend { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px 12px; margin-top: 12px; font-size: 11px; }
+.legendItem { display: flex; gap: 6px; align-items: center; }
+.legendSwatch { width: 12px; height: 12px; border-radius: 999px; display: inline-block; }
+.reportCompositionGrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: start; }
+.reportPodBox { border-top: 7px solid var(--pod); background: #f8fafc; border-radius: 10px; padding: 8px; min-height: 640px; }
+.reportPodBox h2 { margin: 0 0 8px; font-size: 14px; color: #102a43; display: flex; justify-content: space-between; gap: 8px; }
+.reportPodBox ul { margin: 0; padding-left: 16px; font-size: 10.5px; line-height: 1.28; }
+.reportPodBox li { margin-bottom: 3px; }
+.reportSummaryTable { width: 100%; border-collapse: collapse; font-size: 11px; }
+.reportSummaryTable th { background: #005f83; color: white; text-align: left; padding: 7px 6px; }
+.reportSummaryTable td { border-bottom: 1px solid #d9e2ec; padding: 6px; vertical-align: top; }
+.reportSummaryTable tr:nth-child(even) td { background: #f8fafc; }
+.reportColourCell { border-left: 7px solid var(--pod); font-weight: 800; }
+.reportNote { margin-top: 12px; font-size: 11px; color: #52616b; }
+
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  html, body { height: auto; overflow: visible !important; background: white; }
+  body > header, body > main { display: none !important; }
+  #reportView { display: block !important; }
+  .reportPage { break-after: page; page-break-after: always; min-height: 180mm; }
+  .reportPage:last-child { break-after: auto; page-break-after: auto; }
+  .reportMapSvg { width: 100%; height: 155mm; display: block; }
+  .reportHeader { break-inside: avoid; page-break-inside: avoid; }
+  .reportPodBox, .reportSummaryTable tr { break-inside: avoid; page-break-inside: avoid; }
+}

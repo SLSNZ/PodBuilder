@@ -18,6 +18,7 @@
       <button id="addPodBtn">Add Pod</button>
       <button id="resetBtn">Reset</button>
       <button id="exportBtn">Save File</button>
+      <button id="pdfBtn">Export PDF</button>
       <label class="importBtn">Import File<input id="importInput" type="file" accept="application/json" hidden></label>
     </div>
   </header>
@@ -62,6 +63,8 @@
       <div id="board" class="board"></div>
     </section>
   </main>
+
+  <section id="reportView" aria-hidden="true"></section>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>

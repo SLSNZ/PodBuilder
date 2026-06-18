@@ -308,3 +308,136 @@ document.querySelectorAll('.expandBtn').forEach(button => button.addEventListene
   selectedClubId = clubs[0]?.id || null;
   renderAll();
 })();
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+}
+
+function reportDate() {
+  return new Date().toLocaleDateString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function reportHeader(title, subtitle = '') {
+  return `<div class="reportHeader">
+    <div><h1>${escapeHtml(title)}</h1>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}</div>
+    <div class="reportMeta">SLSNZ Club Support Pod Builder<br>Generated ${reportDate()}</div>
+  </div>`;
+}
+
+function podTotals(pod) {
+  const list = clubs.filter(c => podFor(c).name === pod.name);
+  return {
+    list,
+    clubs: list.length,
+    primaryMembers: sum(list, 'primaryMembers'),
+    otherMembers: sum(list, 'otherMembers'),
+    volunteerPatrolHours: sum(list, 'volunteerPatrolHours'),
+    plsPatrolHours: sum(list, 'plsPatrolHours'),
+    patrollingVolunteers: sum(list, 'patrollingVolunteers'),
+    nationsEntries: sum(list, 'nationsEntries'),
+    maoriPercent: avg(list, 'maoriPercent')
+  };
+}
+
+function buildReportMapSvg() {
+  const valid = clubs.filter(c => Number.isFinite(Number(c.lat)) && Number.isFinite(Number(c.lng)));
+  const minLat = Math.min(...valid.map(c => Number(c.lat))) - 1.1;
+  const maxLat = Math.max(...valid.map(c => Number(c.lat))) + 1.1;
+  const minLng = Math.min(...valid.map(c => Number(c.lng))) - 1.3;
+  const maxLng = Math.max(...valid.map(c => Number(c.lng))) + 1.3;
+  const width = 1120;
+  const height = 620;
+  const x = lng => ((Number(lng) - minLng) / (maxLng - minLng)) * width;
+  const y = lat => height - ((Number(lat) - minLat) / (maxLat - minLat)) * height;
+
+  const gridLines = [];
+  for (let i = 1; i < 6; i++) {
+    gridLines.push(`<line x1="${i * width / 6}" y1="0" x2="${i * width / 6}" y2="${height}" />`);
+    gridLines.push(`<line x1="0" y1="${i * height / 6}" x2="${width}" y2="${i * height / 6}" />`);
+  }
+
+  const points = valid.map(c => {
+    const pod = podFor(c);
+    return `<circle cx="${x(c.lng).toFixed(1)}" cy="${y(c.lat).toFixed(1)}" r="6" fill="${pod.color}" stroke="white" stroke-width="2"><title>${escapeHtml(c.name)} - ${escapeHtml(pod.name)}</title></circle>`;
+  }).join('');
+
+  const labelPoints = valid.filter((_, i) => i % 4 === 0).map(c => {
+    const px = x(c.lng), py = y(c.lat);
+    return `<text x="${(px + 8).toFixed(1)}" y="${(py - 5).toFixed(1)}">${escapeHtml(c.name.replace(' SLSC','').replace(' SLSP','').replace(' SLS',''))}</text>`;
+  }).join('');
+
+  return `<svg class="reportMapSvg" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pod allocation map">
+    <rect width="${width}" height="${height}" fill="#e8f6fb" />
+    <g stroke="#c8d9e6" stroke-width="1">${gridLines.join('')}</g>
+    <path d="M760 48 C823 85 851 147 823 209 C797 266 789 318 828 369 C875 431 857 527 763 583 C693 622 616 584 596 516 C572 437 619 389 583 319 C550 256 586 185 642 145 C681 117 711 77 760 48Z" fill="#d9ead3" stroke="#8bbf8a" stroke-width="2" opacity="0.75" />
+    <path d="M443 199 C512 239 516 321 479 376 C440 433 413 478 428 548 C369 590 284 560 259 489 C235 419 276 365 318 318 C355 278 362 222 443 199Z" fill="#d9ead3" stroke="#8bbf8a" stroke-width="2" opacity="0.75" />
+    <text x="770" y="95" class="islandLabel">North Island</text>
+    <text x="295" y="545" class="islandLabel">South Island</text>
+    <g font-family="Arial, sans-serif" font-size="8" fill="#334e68" opacity="0.85">${labelPoints}</g>
+    <g>${points}</g>
+  </svg>`;
+}
+
+function buildLegendHtml() {
+  return `<div class="reportLegend">${visiblePods().map(p => `<div class="legendItem"><span class="legendSwatch" style="background:${p.color}"></span><span>${escapeHtml(p.name)}</span></div>`).join('')}</div>`;
+}
+
+function buildCompositionPages() {
+  const reportPods = visiblePods();
+  const chunks = [reportPods.slice(0, 5), reportPods.slice(5, 10)];
+  return chunks.filter(chunk => chunk.length).map((chunk, index) => `<section class="reportPage">
+    ${reportHeader(`Pod Composition${chunks.length > 1 ? ` ${index + 1}` : ''}`, 'Club groupings by current pod allocation')}
+    <div class="reportCompositionGrid">
+      ${chunk.map(pod => {
+        const list = clubs.filter(c => podFor(c).name === pod.name).sort((a,b) => a.name.localeCompare(b.name));
+        return `<div class="reportPodBox" style="--pod:${pod.color}">
+          <h2><span>${escapeHtml(pod.name)}</span><span>${list.length}</span></h2>
+          <ul>${list.map(c => `<li>${escapeHtml(c.name)}</li>`).join('')}</ul>
+        </div>`;
+      }).join('')}
+    </div>
+  </section>`).join('');
+}
+
+function buildSummaryPage() {
+  const rows = visiblePods().map(pod => {
+    const t = podTotals(pod);
+    return `<tr style="--pod:${pod.color}">
+      <td class="reportColourCell">${escapeHtml(pod.name)}</td>
+      <td>${t.clubs}</td>
+      <td>${fmt(t.primaryMembers)}</td>
+      <td>${fmt(t.otherMembers)}</td>
+      <td>${fmt(t.patrollingVolunteers)}</td>
+      <td>${fmt(t.volunteerPatrolHours)}</td>
+      <td>${fmt(t.plsPatrolHours)}</td>
+      <td>${fmt(t.nationsEntries)}</td>
+      <td>${t.maoriPercent}%</td>
+    </tr>`;
+  }).join('');
+  return `<section class="reportPage">
+    ${reportHeader('Pod Summary', 'Current totals based on the active pod allocation')}
+    <table class="reportSummaryTable">
+      <thead><tr><th>Pod</th><th>Clubs</th><th>Primary Members</th><th>Other Members</th><th>Patrol Volunteers</th><th>Volunteer Hrs</th><th>PLS Hrs</th><th>Nations Entries</th><th>Avg Māori %</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="reportNote">Note: this report reflects the current on-screen pod allocation. Use Save File to store the underlying editable scenario.</p>
+  </section>`;
+}
+
+function buildPdfReport() {
+  const report = document.getElementById('reportView');
+  report.innerHTML = `<section class="reportPage">
+    ${reportHeader('SLSNZ Club Support Pod Builder', 'Pod allocation map')}
+    <div class="reportMapWrap">${buildReportMapSvg()}</div>
+    ${buildLegendHtml()}
+  </section>
+  ${buildCompositionPages()}
+  ${buildSummaryPage()}`;
+}
+
+function exportPdf() {
+  buildPdfReport();
+  setTimeout(() => window.print(), 100);
+}
+
+document.getElementById('pdfBtn')?.addEventListener('click', exportPdf);
