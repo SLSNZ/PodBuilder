@@ -27,10 +27,13 @@ let clubs = [];
 let pods = structuredClone(DEFAULT_PODS);
 let markers = new Map();
 let map;
+let reportMap = null;
+let reportMapMarkers = [];
 let draggedClubId = null;
 let selectedClubId = null;
+let podNotes = {};
 
-const save = () => localStorage.setItem('slsnzPodBuilder', JSON.stringify({ clubs, pods }));
+const save = () => localStorage.setItem('slsnzPodBuilder', JSON.stringify({ clubs, pods, podNotes }));
 const loadSaved = () => {
   const saved = localStorage.getItem('slsnzPodBuilder');
   if (!saved) return false;
@@ -38,6 +41,7 @@ const loadSaved = () => {
     const state = JSON.parse(saved);
     clubs = state.clubs;
     pods = (state.pods || pods).filter(p => p.id !== 'unassigned').slice(0, MAX_PODS);
+    podNotes = state.podNotes || {};
     return true;
   } catch { return false; }
 };
@@ -274,6 +278,7 @@ function metricLevel(value, values) {
 
 function levelLabel(level) { return level === 'bad' ? 'High' : level === 'warn' ? 'Elevated' : 'Balanced'; }
 function levelDot(level) { return `<span class="trafficDot ${level}"></span>`; }
+function noteForPod(pod) { return podNotes[pod.id] || podNotes[pod.name] || ''; }
 
 function podObservations(total, totals) {
   const metrics = [
@@ -341,23 +346,68 @@ function renderSummary() {
         <div>${levelDot(total.geo.level)} Geographic Spread <b>${total.geo.label}</b></div>
       </div>
       <div class="geoInsight">Furthest clubs: <b>${total.geo.maxKm ? `${fmt(total.geo.maxKm)} km` : '—'}</b>${total.geo.pair ? `<small>${escapeHtml(total.geo.pair)}</small>` : ''}</div>
-      <details class="whyBox"><summary>Why?</summary><ul>${obs.map(o => `<li>${escapeHtml(o)}</li>`).join('')}</ul></details>`;
+      <div class="summaryActions">
+        <details class="whyBox"><summary>Why?</summary><ul>${obs.map(o => `<li>${escapeHtml(o)}</li>`).join('')}</ul></details>
+        <button class="noteBtn" data-note-pod="${pod.id}" type="button">${noteForPod(pod) ? 'Edit notes' : 'Add notes'}</button>
+      </div>
+      ${noteForPod(pod) ? `<div class="podNotePreview"><b>Notes</b><span>${escapeHtml(noteForPod(pod)).replace(/\n/g, '<br>')}</span></div>` : ''}`;
     el.appendChild(card);
   });
+  document.querySelectorAll('[data-note-pod]').forEach(button => button.addEventListener('click', () => openPodNoteEditor(button.dataset.notePod)));
 }
+
+function openPodNoteEditor(podId) {
+  const pod = pods.find(p => p.id === podId) || visiblePods().find(p => p.id === podId);
+  if (!pod) return;
+  let modal = document.getElementById('noteModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'noteModal';
+    modal.className = 'noteModal';
+    modal.innerHTML = `<div class="noteModalCard">
+      <div class="noteModalHeader"><h3 id="noteModalTitle">Pod notes</h3><button id="closeNoteModal" type="button">×</button></div>
+      <p>These notes are saved in the scenario file and included in the PDF export.</p>
+      <textarea id="podNoteText" rows="8" placeholder="Add context, assumptions, risks, discussion points or decisions for this pod..."></textarea>
+      <div class="noteModalActions"><button id="clearPodNote" type="button">Clear note</button><button id="savePodNote" type="button">Save note</button></div>
+    </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('closeNoteModal').addEventListener('click', closePodNoteEditor);
+    modal.addEventListener('click', e => { if (e.target === modal) closePodNoteEditor(); });
+  }
+  modal.dataset.podId = pod.id;
+  document.getElementById('noteModalTitle').textContent = `${pod.name} notes`;
+  document.getElementById('podNoteText').value = noteForPod(pod);
+  document.getElementById('savePodNote').onclick = () => {
+    const text = document.getElementById('podNoteText').value.trim();
+    if (text) podNotes[pod.id] = text;
+    else delete podNotes[pod.id];
+    save();
+    closePodNoteEditor();
+    renderSummary();
+  };
+  document.getElementById('clearPodNote').onclick = () => {
+    delete podNotes[pod.id];
+    save();
+    closePodNoteEditor();
+    renderSummary();
+  };
+  modal.classList.add('is-open');
+  document.getElementById('podNoteText').focus();
+}
+
+function closePodNoteEditor() {
+  document.getElementById('noteModal')?.classList.remove('is-open');
+}
+
 function renderAll(){ renderMarkers(); renderBoard(); renderSummary(); renderClubDetails(); }
 
 document.getElementById('searchInput').addEventListener('input', renderAll);
 document.getElementById('sortSelect').addEventListener('change', renderBoard);
-document.getElementById('toggleFiltersBtn').addEventListener('click', () => {
-  const bar = document.getElementById('filterBar');
-  bar.hidden = !bar.hidden;
-});
 document.getElementById('resetBtn').addEventListener('click', () => {
   if(confirm('Clear local pod changes and reload original data?')) { localStorage.removeItem('slsnzPodBuilder'); location.reload(); }
 });
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({ pods, clubs }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ pods, clubs, podNotes }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'slsnz-pod-builder-save-file.json';
@@ -369,6 +419,7 @@ document.getElementById('importInput').addEventListener('change', async e => {
   const state = JSON.parse(await file.text());
   pods = (state.pods || pods).filter(p => p.id !== 'unassigned').slice(0, MAX_PODS);
   clubs = state.clubs || state;
+  podNotes = state.podNotes || {};
   save();
   renderAll();
 });
@@ -434,43 +485,42 @@ function podTotals(pod) {
     geo
   };
 }
-function buildReportMapSvg() {
+function buildReportMapHtml() {
+  return `<div class="reportMapWrap"><div id="reportLeafletMap" class="reportLeafletMap"></div></div>`;
+}
+
+function renderReportLeafletMap() {
+  const el = document.getElementById('reportLeafletMap');
+  if (!el || !window.L) return;
+  if (reportMap) { reportMap.remove(); reportMap = null; reportMapMarkers = []; }
+
+  reportMap = L.map(el, {
+    zoomControl: false,
+    attributionControl: false,
+    dragging: false,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    boxZoom: false,
+    keyboard: false,
+    tap: false
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    crossOrigin: true
+  }).addTo(reportMap);
+
   const valid = clubs.filter(c => Number.isFinite(Number(c.lat)) && Number.isFinite(Number(c.lng)));
-  const minLat = Math.min(...valid.map(c => Number(c.lat))) - 1.1;
-  const maxLat = Math.max(...valid.map(c => Number(c.lat))) + 1.1;
-  const minLng = Math.min(...valid.map(c => Number(c.lng))) - 1.3;
-  const maxLng = Math.max(...valid.map(c => Number(c.lng))) + 1.3;
-  const width = 1120;
-  const height = 620;
-  const x = lng => ((Number(lng) - minLng) / (maxLng - minLng)) * width;
-  const y = lat => height - ((Number(lat) - minLat) / (maxLat - minLat)) * height;
+  const bounds = [];
+  valid.forEach(club => {
+    const pod = podFor(club);
+    const marker = L.marker([club.lat, club.lng], { icon: markerIcon(pod.color), interactive: false }).addTo(reportMap);
+    reportMapMarkers.push(marker);
+    bounds.push([club.lat, club.lng]);
+  });
 
-  const gridLines = [];
-  for (let i = 1; i < 6; i++) {
-    gridLines.push(`<line x1="${i * width / 6}" y1="0" x2="${i * width / 6}" y2="${height}" />`);
-    gridLines.push(`<line x1="0" y1="${i * height / 6}" x2="${width}" y2="${i * height / 6}" />`);
-  }
-
-  const points = valid.map(c => {
-    const pod = podFor(c);
-    return `<circle cx="${x(c.lng).toFixed(1)}" cy="${y(c.lat).toFixed(1)}" r="6" fill="${pod.color}" stroke="white" stroke-width="2"><title>${escapeHtml(c.name)} - ${escapeHtml(pod.name)}</title></circle>`;
-  }).join('');
-
-  const labelPoints = valid.filter((_, i) => i % 4 === 0).map(c => {
-    const px = x(c.lng), py = y(c.lat);
-    return `<text x="${(px + 8).toFixed(1)}" y="${(py - 5).toFixed(1)}">${escapeHtml(c.name.replace(' SLSC','').replace(' SLSP','').replace(' SLS',''))}</text>`;
-  }).join('');
-
-  return `<svg class="reportMapSvg" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pod allocation map">
-    <rect width="${width}" height="${height}" fill="#e8f6fb" />
-    <g stroke="#c8d9e6" stroke-width="1">${gridLines.join('')}</g>
-    <path d="M760 48 C823 85 851 147 823 209 C797 266 789 318 828 369 C875 431 857 527 763 583 C693 622 616 584 596 516 C572 437 619 389 583 319 C550 256 586 185 642 145 C681 117 711 77 760 48Z" fill="#d9ead3" stroke="#8bbf8a" stroke-width="2" opacity="0.75" />
-    <path d="M443 199 C512 239 516 321 479 376 C440 433 413 478 428 548 C369 590 284 560 259 489 C235 419 276 365 318 318 C355 278 362 222 443 199Z" fill="#d9ead3" stroke="#8bbf8a" stroke-width="2" opacity="0.75" />
-    <text x="770" y="95" class="islandLabel">North Island</text>
-    <text x="295" y="545" class="islandLabel">South Island</text>
-    <g font-family="Arial, sans-serif" font-size="8" fill="#334e68" opacity="0.85">${labelPoints}</g>
-    <g>${points}</g>
-  </svg>`;
+  if (bounds.length) reportMap.fitBounds(bounds, { padding: [35, 35] });
+  setTimeout(() => reportMap?.invalidateSize(), 250);
 }
 
 function buildLegendHtml() {
@@ -488,6 +538,7 @@ function buildCompositionPages() {
         return `<div class="reportPodBox" style="--pod:${pod.color}">
           <h2><span>${escapeHtml(pod.name)}</span><span>${list.length}</span></h2>
           <ul>${list.map(c => `<li>${escapeHtml(c.name)}</li>`).join('')}</ul>
+          ${noteForPod(pod) ? `<div class="reportPodNote"><b>Notes</b><br>${escapeHtml(noteForPod(pod)).replace(/\n/g, '<br>')}</div>` : ''}
         </div>`;
       }).join('')}
     </div>
@@ -511,26 +562,34 @@ function buildSummaryPage() {
       <td>${score}%</td>
       <td>${escapeHtml(t.geo.label)}<br><small>${fmt(t.geo.maxKm)} km max</small></td>
       <td>${escapeHtml(obs)}</td>
+      <td>${noteForPod(t.pod) ? escapeHtml(noteForPod(t.pod)).replace(/\n/g, '<br>') : '—'}</td>
     </tr>`;
   }).join('');
   return `<section class="reportPage">
     ${reportHeader('Pod Summary', 'Current totals based on the active support model allocation')}
     <table class="reportSummaryTable">
-      <thead><tr><th>Pod</th><th>Clubs</th><th>Primary Members</th><th>Other Members</th><th>Patrol Volunteers</th><th>Volunteer Hrs</th><th>PLS Hrs</th><th>Nationals Entries</th><th>Balance</th><th>Travel Spread</th><th>Observations</th></tr></thead>
+      <thead><tr><th>Pod</th><th>Clubs</th><th>Primary Members</th><th>Other Members</th><th>Patrol Volunteers</th><th>Volunteer Hrs</th><th>PLS Hrs</th><th>Nationals Entries</th><th>Balance</th><th>Travel Spread</th><th>Observations</th><th>Notes</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <p class="reportNote">Balance is an objective comparison between pods using the current metrics. It does not attempt to judge club health or capability need.</p>
   </section>`;
 }
 function buildPdfReport() {
-  const report = document.getElementById('reportPages') || document.getElementById('reportView');
-  report.innerHTML = `<section class="reportPage">
-    ${reportHeader('Club Support Model Designer', 'Pod allocation map')}
-    <div class="reportMapWrap">${buildReportMapSvg()}</div>
-    ${buildLegendHtml()}
-  </section>
-  ${buildCompositionPages()}
-  ${buildSummaryPage()}`;
+  const overlay = document.getElementById('reportView');
+  overlay.className = 'reportOverlay';
+  overlay.innerHTML = `<div class="reportToolbar">
+    <div><strong>PDF report preview</strong><span>Review the pages, then use Print / Save PDF.</span></div>
+    <div class="reportToolbarActions"><button id="printReportBtn" type="button">Print / Save PDF</button><button id="closeReportBtn" type="button">Close</button></div>
+  </div>
+  <div id="reportPages" class="reportPages">
+    <section class="reportPage">
+      ${reportHeader('Club Support Model Designer', 'Pod allocation map')}
+      ${buildReportMapHtml()}
+      ${buildLegendHtml()}
+    </section>
+    ${buildCompositionPages()}
+    ${buildSummaryPage()}
+  </div>`;
 }
 
 function openReportPreview() {
@@ -538,18 +597,26 @@ function openReportPreview() {
   const overlay = document.getElementById('reportView');
   overlay.classList.add('is-open');
   overlay.setAttribute('aria-hidden', 'false');
+  document.getElementById('printReportBtn')?.addEventListener('click', () => {
+    reportMap?.invalidateSize();
+    setTimeout(() => window.print(), 250);
+  });
+  document.getElementById('closeReportBtn')?.addEventListener('click', closeReportPreview);
+  setTimeout(renderReportLeafletMap, 100);
 }
 
 function closeReportPreview() {
   const overlay = document.getElementById('reportView');
   overlay.classList.remove('is-open');
   overlay.setAttribute('aria-hidden', 'true');
+  if (reportMap) { reportMap.remove(); reportMap = null; reportMapMarkers = []; }
 }
 
 function exportPdf() {
   openReportPreview();
-} 
+}
+
+window.addEventListener('beforeprint', () => reportMap?.invalidateSize());
+window.addEventListener('afterprint', () => reportMap?.invalidateSize());
 
 document.getElementById('pdfBtn')?.addEventListener('click', exportPdf);
-document.getElementById('printReportBtn')?.addEventListener('click', () => window.print());
-document.getElementById('closeReportBtn')?.addEventListener('click', closeReportPreview);

@@ -31,7 +31,6 @@ main { height: calc(100vh - 82px); display: grid; grid-template-columns: 1.25fr 
 .boardControls { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
 #searchInput { width: 230px; max-width: 28vw; padding: 9px; border: 1px solid #ccd6dd; border-radius: 8px; }
 #sortSelect, .filterBar select { padding: 9px; border: 1px solid #ccd6dd; border-radius: 8px; background: white; color: #102a43; }
-#toggleFiltersBtn { background: #eef6fa; color: #005f83; }
 .filterBar { flex: 0 0 auto; display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)) auto; gap: 8px; padding: 10px 16px 0; align-items: end; }
 .filterBar label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; font-weight: 700; color: #52616b; }
 .clearFiltersBtn { background: #eef6fa; color: #005f83; align-self: end; white-space: nowrap; }
@@ -180,3 +179,36 @@ body.map-hidden #summary .summaryGridV2 { grid-template-columns: 1fr; }
 #reportView.reportOverlay { display: none; }
 #reportView.reportOverlay.is-open { display: block; }
 @media print { #reportView.reportOverlay { display: block !important; } }
+
+/* v7 PDF map refinements */
+.reportLeafletMap { width: 100%; height: 155mm; background: #e8f6fb; }
+.reportLeafletMap .leaflet-control-container { display: none; }
+.reportLeafletMap .leaflet-tile { filter: saturate(.9) contrast(.98); }
+.reportOverlay.is-open { display: block; }
+@media print {
+  .reportLeafletMap { width: 100%; height: 155mm; }
+  .reportMapWrap { break-inside: avoid; page-break-inside: avoid; }
+}
+
+
+/* v8 pod notes and filter button removal */
+.summaryActions { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.summaryActions .whyBox { margin-top: 0; }
+.noteBtn { background: #eef6fa; color: #005f83; padding: 4px 7px; font-size: 11px; border-radius: 7px; white-space: nowrap; }
+.podNotePreview { margin-top: 6px; padding: 7px; border-radius: 7px; background: #fffdf5; border: 1px solid #f5e6b3; font-size: 11px; line-height: 1.35; }
+.podNotePreview b { display: block; color: #7a4b00; margin-bottom: 2px; }
+.podNotePreview span { color: #334e68; }
+.noteModal { display: none; position: fixed; inset: 0; z-index: 30000; background: rgba(16,42,67,.45); align-items: center; justify-content: center; padding: 20px; }
+.noteModal.is-open { display: flex; }
+.noteModalCard { width: min(620px, 94vw); background: white; border-radius: 14px; padding: 16px; box-shadow: 0 16px 50px rgba(0,0,0,.25); }
+.noteModalHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.noteModalHeader h3 { margin: 0; color: #005f83; font-size: 18px; }
+#closeNoteModal { background: #eef6fa; width: 30px; height: 30px; padding: 0; border-radius: 50%; font-size: 18px; line-height: 1; }
+.noteModalCard p { color: #52616b; font-size: 12px; margin-bottom: 10px; }
+#podNoteText { width: 100%; resize: vertical; min-height: 150px; border: 1px solid #ccd6dd; border-radius: 9px; padding: 10px; font-family: inherit; font-size: 13px; color: #102a43; }
+.noteModalActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+#clearPodNote { background: #f8fafc; color: #52616b; }
+#savePodNote { background: #005f83; color: white; }
+.reportPodNote { margin-top: 8px; padding: 7px; border-radius: 8px; background: #fffdf5; border: 1px solid #f5e6b3; font-size: 10px; line-height: 1.25; color: #334e68; }
+.reportPodNote b { color: #7a4b00; }
+@media print { .noteModal { display: none !important; } }

@@ -11,7 +11,7 @@
   <header>
     <div>
       <h1>Club Support Model Designer</h1>
-      <p>Design, test and report SLSNZ club support model options.</p>
+      <p>Design and compare club support pod allocations. Map colours and pod summaries update automatically.</p>
     </div>
     <div class="actions">
       <button id="toggleMapBtn">Hide Map</button>
@@ -55,28 +55,15 @@
             <option value="plsPatrolHoursDesc">Sort: PLS hrs ↓</option>
             <option value="clubSize">Sort: Club size</option>
           </select>
-          <button id="toggleFiltersBtn">Filters</button>
           <button class="expandBtn" data-panel="boardPanel">Full Screen</button>
         </div>
       </div>
-      <div id="filterBar" class="filterBar" hidden></div>
+      <div id="filterBar" class="filterBar"></div>
       <div id="board" class="board"></div>
     </section>
   </main>
 
-  <section id="reportView" class="reportOverlay" aria-hidden="true">
-    <div class="reportToolbar">
-      <div>
-        <strong>PDF Report Preview</strong>
-        <span>Review the report, then print or save as PDF.</span>
-      </div>
-      <div class="reportToolbarActions">
-        <button id="printReportBtn">Print / Save PDF</button>
-        <button id="closeReportBtn">Close</button>
-      </div>
-    </div>
-    <div id="reportPages" class="reportPages"></div>
-  </section>
+  <section id="reportView" aria-hidden="true"></section>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>
