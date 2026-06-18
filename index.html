@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SLSNZ Pod Builder</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>SLSNZ Club Support Pod Builder</h1>
+      <p>Drag clubs between pods. Map colours and pod summaries update automatically.</p>
+    </div>
+    <div class="actions">
+      <button id="addPodBtn">Add Pod</button>
+      <button id="resetBtn">Reset</button>
+      <button id="exportBtn">Export JSON</button>
+      <label class="importBtn">Import JSON<input id="importInput" type="file" accept="application/json" hidden></label>
+    </div>
+  </header>
+
+  <main>
+    <section class="mapPanel">
+      <div id="map"></div>
+    </section>
+    <section class="summaryPanel">
+      <h2>Pod Summary</h2>
+      <div id="summary"></div>
+    </section>
+    <section class="boardPanel">
+      <div class="boardHeader">
+        <h2>Pod Planner</h2>
+        <input id="searchInput" placeholder="Search clubs..." />
+      </div>
+      <div id="board" class="board"></div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

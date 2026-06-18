@@ -1,0 +1,31 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Arial, sans-serif; background: #f4f7f9; color: #102a43; }
+header { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 24px; background: #005f83; color: white; }
+h1 { margin: 0 0 4px; font-size: 24px; }
+p { margin: 0; opacity: .9; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+button, .importBtn { border: 0; background: white; color: #005f83; padding: 9px 12px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+main { display: grid; grid-template-columns: 1.2fr .8fr; grid-template-rows: 48vh auto; gap: 16px; padding: 16px; }
+.mapPanel, .summaryPanel, .boardPanel { background: white; border-radius: 14px; box-shadow: 0 5px 18px rgba(0,0,0,.08); overflow: hidden; }
+.mapPanel { min-height: 440px; }
+#map { width: 100%; height: 100%; min-height: 440px; }
+.summaryPanel { padding: 16px; overflow: auto; }
+.summaryPanel h2, .boardHeader h2 { margin: 0; font-size: 18px; }
+.summaryCard { border-left: 6px solid var(--pod); padding: 10px 12px; margin: 10px 0; background: #f8fafc; border-radius: 10px; }
+.summaryCard strong { display: block; margin-bottom: 6px; }
+.summaryGrid { display: grid; grid-template-columns: repeat(2, minmax(110px, 1fr)); gap: 6px; font-size: 13px; }
+.boardPanel { grid-column: 1 / -1; padding: 16px; }
+.boardHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+#searchInput { width: 280px; max-width: 45vw; padding: 10px; border: 1px solid #ccd6dd; border-radius: 8px; }
+.board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.podColumn { flex: 0 0 260px; background: #eef3f6; border-radius: 12px; padding: 10px; border-top: 8px solid var(--pod); min-height: 260px; }
+.podTitle { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 800; }
+.podTitle input { width: 150px; border: 0; background: transparent; font-weight: 800; color: #102a43; }
+.count { font-size: 12px; background: rgba(255,255,255,.8); padding: 3px 7px; border-radius: 20px; }
+.clubCard { padding: 9px 10px; background: white; border-radius: 9px; margin: 7px 0; box-shadow: 0 2px 6px rgba(0,0,0,.08); cursor: grab; border-left: 5px solid var(--pod); font-size: 14px; }
+.clubCard small { display: block; opacity: .7; margin-top: 2px; }
+.dropTarget { outline: 3px dashed rgba(0,95,131,.35); }
+.leaflet-popup-content strong { color: #005f83; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; grid-template-rows: 420px auto auto; } .boardPanel { grid-column: auto; } header { align-items: flex-start; flex-direction: column; } }
+
+.clubMarker span { display:block; width:16px; height:16px; border-radius:50%; border:2px solid white; box-shadow:0 1px 5px rgba(0,0,0,.35); }
