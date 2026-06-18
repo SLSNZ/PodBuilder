@@ -14,25 +14,38 @@
       <p>Drag clubs between pods. Map colours and pod summaries update automatically.</p>
     </div>
     <div class="actions">
+      <button id="toggleMapBtn">Hide Map</button>
       <button id="addPodBtn">Add Pod</button>
       <button id="resetBtn">Reset</button>
-      <button id="exportBtn">Export JSON</button>
-      <label class="importBtn">Import JSON<input id="importInput" type="file" accept="application/json" hidden></label>
+      <button id="exportBtn">Save File</button>
+      <label class="importBtn">Import File<input id="importInput" type="file" accept="application/json" hidden></label>
     </div>
   </header>
 
   <main>
-    <section class="mapPanel">
+    <section class="mapPanel panel" id="mapPanel">
+      <div class="panelHeader">
+        <h2>Club Map</h2>
+        <button class="expandBtn" data-panel="mapPanel">Full Screen</button>
+      </div>
       <div id="map"></div>
     </section>
-    <section class="summaryPanel">
-      <h2>Pod Summary</h2>
+
+    <section class="summaryPanel panel" id="summaryPanel">
+      <div class="panelHeader">
+        <h2>Pod Summary</h2>
+        <button class="expandBtn" data-panel="summaryPanel">Full Screen</button>
+      </div>
       <div id="summary"></div>
     </section>
-    <section class="boardPanel">
-      <div class="boardHeader">
+
+    <section class="boardPanel panel" id="boardPanel">
+      <div class="boardHeader panelHeader">
         <h2>Pod Planner</h2>
-        <input id="searchInput" placeholder="Search clubs..." />
+        <div class="boardControls">
+          <input id="searchInput" placeholder="Search clubs..." />
+          <button class="expandBtn" data-panel="boardPanel">Full Screen</button>
+        </div>
       </div>
       <div id="board" class="board"></div>
     </section>

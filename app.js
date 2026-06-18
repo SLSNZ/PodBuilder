@@ -66,6 +66,7 @@ function renderBoard() {
   const q = document.getElementById('searchInput').value.toLowerCase();
   const boardPods = visiblePods();
   board.style.setProperty('--pod-count', boardPods.length);
+  document.getElementById('summary')?.style.setProperty('--pod-count', boardPods.length);
   board.innerHTML = '';
 
   boardPods.forEach(pod => {
@@ -75,11 +76,14 @@ function renderBoard() {
     col.dataset.pod = pod.name;
 
     const podClubs = clubs.filter(c => podFor(c).name === pod.name && c.name.toLowerCase().includes(q));
+    const allPodClubs = clubs.filter(c => podFor(c).name === pod.name);
+    const canRemove = pod.id !== 'unassigned' && allPodClubs.length === 0;
     const titleControl = pod.id === 'unassigned'
       ? `<span class="fixedPodName">${pod.name}</span>`
       : `<input value="${pod.name}" data-pod-name="${pod.id}" title="Rename pod">`;
+    const removeControl = canRemove ? `<button class="removePodBtn" data-remove-pod="${pod.id}" title="Remove empty pod">×</button>` : '';
 
-    col.innerHTML = `<div class="podTitle">${titleControl}<span class="count">${podClubs.length}</span></div>`;
+    col.innerHTML = `<div class="podTitle">${titleControl}<span class="count">${podClubs.length}</span>${removeControl}</div>`;
 
     podClubs.sort((a,b) => a.name.localeCompare(b.name)).forEach(club => {
       const card = document.createElement('div');
@@ -113,6 +117,21 @@ function renderBoard() {
     save();
     renderAll();
   }));
+
+  document.querySelectorAll('[data-remove-pod]').forEach(button => button.addEventListener('click', e => {
+    const pod = pods.find(p => p.id === e.currentTarget.dataset.removePod);
+    if (!pod) return;
+    const clubCount = clubs.filter(c => podFor(c).id === pod.id).length;
+    if (clubCount > 0) {
+      alert('This pod still contains clubs. Move them first, then remove the pod.');
+      return;
+    }
+    if (confirm(`Remove empty pod "${pod.name}"?`)) {
+      pods = pods.filter(p => p.id !== pod.id);
+      save();
+      renderAll();
+    }
+  }));
 }
 
 function sum(list, field) { return list.reduce((t, c) => t + (Number(c[field]) || 0), 0); }
@@ -121,6 +140,7 @@ function avg(list, field) { return list.length ? Math.round(sum(list, field) / l
 function renderSummary() {
   const el = document.getElementById('summary');
   el.innerHTML = '';
+  el.style.setProperty('--pod-count', visiblePods().length);
   visiblePods().forEach(pod => {
     const list = clubs.filter(c => podFor(c).name === pod.name);
     const card = document.createElement('div');
@@ -152,7 +172,7 @@ document.getElementById('exportBtn').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify({ pods, clubs }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'slsnz-pod-builder-export.json';
+  a.download = 'slsnz-pod-builder-save-file.json';
   a.click();
 });
 document.getElementById('importInput').addEventListener('change', async e => {
@@ -173,6 +193,27 @@ document.getElementById('addPodBtn').addEventListener('click', () => {
   save();
   renderAll();
 });
+
+function refreshMapSize() {
+  setTimeout(() => map?.invalidateSize(), 150);
+}
+
+document.getElementById('toggleMapBtn').addEventListener('click', () => {
+  const hidden = document.body.classList.toggle('map-hidden');
+  document.getElementById('toggleMapBtn').textContent = hidden ? 'Show Map' : 'Hide Map';
+  refreshMapSize();
+});
+
+document.querySelectorAll('.expandBtn').forEach(button => button.addEventListener('click', e => {
+  const panel = document.getElementById(e.currentTarget.dataset.panel);
+  const isFull = panel.classList.toggle('is-fullscreen');
+  document.body.classList.toggle('panel-fullscreen', isFull);
+  document.querySelectorAll('.panel').forEach(p => {
+    if (p !== panel) p.classList.toggle('hidden-while-fullscreen', isFull);
+  });
+  e.currentTarget.textContent = isFull ? 'Collapse' : 'Full Screen';
+  refreshMapSize();
+}));
 
 (async function start(){
   initMap();
