@@ -363,3 +363,38 @@ body.map-hidden #summary { grid-template-columns: repeat(var(--pod-count), minma
 .clubInfoCallout .detailItem span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: #627d98; margin-bottom: 2px; }
 .reportToolbarActions button:disabled { opacity: .7; cursor: wait; }
 @media print { .reportOverlay { display: none !important; } }
+
+/* v15 model evaluation */
+.compareOverlay { position: fixed; inset: 0; z-index: 50000; display: none; background: rgba(15, 23, 42, .55); padding: 24px; overflow: auto; }
+.compareOverlay.is-open { display: block; }
+.compareShell { max-width: 1220px; margin: 0 auto; background: #f8fafc; border-radius: 18px; box-shadow: 0 24px 70px rgba(15,23,42,.32); overflow: hidden; border: 1px solid #d9e2ec; }
+.compareHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; padding: 18px 22px; background: #005f83; color: #fff; }
+.compareHeader h2 { margin: 0 0 4px; font-size: 22px; }
+.compareHeader p { margin: 0; opacity: .86; font-size: 13px; }
+.compareHeader button { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 999px; width: 32px; height: 32px; padding: 0; font-size: 20px; }
+.compareSelectors { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 14px; padding: 14px 22px; background: #eaf4f8; border-bottom: 1px solid #d9e2ec; }
+.compareSelectors label { font-size: 12px; font-weight: 700; color: #334e68; text-transform: uppercase; letter-spacing: .03em; }
+.compareSelectors select { display: block; width: 100%; margin-top: 6px; padding: 9px 10px; border-radius: 10px; border: 1px solid #bcccdc; background: #fff; font-size: 14px; }
+#compareResults { padding: 18px 22px 22px; }
+.compareScoreRow { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.compareScoreCard { background: #fff; border: 1px solid #d9e2ec; border-radius: 14px; padding: 14px; box-shadow: 0 6px 20px rgba(16,42,67,.06); }
+.compareScoreCard span { display: block; color: #627d98; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+.compareScoreCard b { display: block; color: #005f83; font-size: 30px; line-height: 1.1; margin-top: 6px; }
+.compareScoreCard small { color: #486581; font-weight: 700; }
+.compareGrid { display: grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap: 14px; }
+.compareCard { background: #fff; border: 1px solid #d9e2ec; border-radius: 14px; padding: 14px; box-shadow: 0 6px 20px rgba(16,42,67,.05); }
+.compareCard h3 { margin: 0 0 10px; color: #005f83; font-size: 16px; }
+.compareCard ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: #334e68; }
+.compareCard table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.compareCard td, .compareCard th { padding: 7px 8px; border-bottom: 1px solid #edf2f7; text-align: left; }
+.compareCard td:not(:first-child), .compareCard th:not(:first-child) { text-align: right; }
+.deltaCell { font-weight: 800; color: #005f83; }
+.compareHint { color: #627d98; font-size: 12px; margin: 10px 0 0; }
+.movementsCard { margin-top: 14px; }
+.movementsTableWrap { max-height: 300px; overflow: auto; border: 1px solid #edf2f7; border-radius: 10px; }
+.movementsTableWrap table { margin: 0; }
+.movementsTableWrap thead th { position: sticky; top: 0; background: #f8fafc; }
+@media (max-width: 900px) {
+  .compareOverlay { padding: 10px; }
+  .compareSelectors, .compareScoreRow, .compareGrid { grid-template-columns: 1fr; }
+}

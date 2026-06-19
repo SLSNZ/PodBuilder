@@ -1,3 +1,4 @@
+const APP_VERSION = 15;
 const DEFAULT_PODS = [
   { id: 'pod-1', name: 'North 1', color: '#0072B2' },
   { id: 'pod-2', name: 'North 2', color: '#00B050' },
@@ -36,7 +37,8 @@ let podNotes = {};
 let scenarios = [];
 let activeScenarioId = 'current';
 let layoutSettings = { leftPercent: 50, topPercent: 42, layoutMode: 'default' };
-let scenarioMeta = { name: '10 pod model', description: 'Baseline working scenario', createdBy: '', created: new Date().toISOString(), updated: new Date().toISOString() };
+let scenarioMeta = { name: '10 Pod Model', description: 'Baseline working scenario', createdBy: '', created: new Date().toISOString(), updated: new Date().toISOString() };
+let defaultWorkspace = null;
 
 function currentScenarioSnapshot() {
   return {
@@ -64,9 +66,69 @@ function updateActiveScenario() {
 }
 const save = () => {
   if (clubs.length) updateActiveScenario();
-  localStorage.setItem('slsnzPodBuilder', JSON.stringify({ version: 14, activeScenarioId, scenarios, layoutSettings }));
+  localStorage.setItem('slsnzPodBuilder', JSON.stringify({ version: APP_VERSION, activeScenarioId, scenarios, layoutSettings }));
   if (typeof renderScenarioPanel === 'function') renderScenarioPanel();
 };
+
+function normaliseScenarioName(name) {
+  return String(name || '').trim().toLowerCase();
+}
+function normaliseScenario(scenario, fallbackIndex = 0) {
+  const copy = structuredClone(scenario);
+  copy.id = copy.id || `scenario-${Date.now()}-${fallbackIndex}`;
+  copy.meta = copy.meta || {};
+  if (copy.meta.name === 'Current Allocation' || copy.meta.name === '10 pod model') copy.meta.name = '10 Pod Model';
+  copy.meta.name = copy.meta.name || `Scenario ${fallbackIndex + 1}`;
+  copy.meta.description = copy.meta.description || '';
+  copy.meta.created = copy.meta.created || new Date().toISOString();
+  copy.meta.updated = copy.meta.updated || copy.meta.created;
+  copy.clubs = Array.isArray(copy.clubs) ? copy.clubs : [];
+  copy.pods = Array.isArray(copy.pods) ? copy.pods.filter(p => p.id !== 'unassigned').slice(0, MAX_PODS) : structuredClone(DEFAULT_PODS);
+  copy.podNotes = copy.podNotes || {};
+  return copy;
+}
+async function loadDefaultWorkspace() {
+  try {
+    const response = await fetch('default-workspace.json', { cache: 'no-store' });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!Array.isArray(data.scenarios)) return null;
+    data.scenarios = data.scenarios.map(normaliseScenario);
+    return data;
+  } catch (err) {
+    console.warn('Default workspace not available', err);
+    return null;
+  }
+}
+function defaultScenarios() {
+  return (defaultWorkspace?.scenarios || []).map(normaliseScenario);
+}
+function mergeDefaultScenarios() {
+  const defaults = defaultScenarios();
+  if (!defaults.length) return false;
+  const existingNames = new Set(scenarios.map(s => normaliseScenarioName(s?.meta?.name)));
+  let changed = false;
+  defaults.forEach(ds => {
+    const key = normaliseScenarioName(ds.meta?.name);
+    if (!existingNames.has(key)) {
+      scenarios.push(ds);
+      existingNames.add(key);
+      changed = true;
+    }
+  });
+  return changed;
+}
+function loadDefaultState() {
+  const defaults = defaultScenarios();
+  if (defaults.length) {
+    scenarios = defaults;
+    const preferred = defaults.find(s => normaliseScenarioName(s.meta?.name) === '10 pod model') || defaults.find(s => s.id === defaultWorkspace?.activeScenarioId) || defaults[0];
+    applyScenario(preferred);
+    return true;
+  }
+  return false;
+}
+
 const loadSaved = () => {
   const saved = localStorage.getItem('slsnzPodBuilder');
   if (!saved) return false;
@@ -526,7 +588,7 @@ function closePodNoteEditor() {
 
 function scenarioLabel(scenario = { meta: scenarioMeta }) {
   const name = scenario?.meta?.name || 'Untitled Scenario';
-  return name === 'Current Allocation' ? '10 pod model' : name;
+  return (name === 'Current Allocation' || name === '10 pod model') ? '10 Pod Model' : name;
 }
 function renderScenarioPanel() {
   const el = document.getElementById('scenarioPanel');
@@ -560,8 +622,8 @@ function editScenarioInfo() { const info = promptScenarioInfo(scenarioMeta.name,
 function deleteScenario() { if (scenarios.length <= 1) { alert('At least one scenario is required.'); return; } if (!confirm(`Delete scenario "${scenarioMeta.name}"?`)) return; scenarios = scenarios.filter(s => s.id !== activeScenarioId); applyScenario(scenarios[0]); save(); renderAll(); }
 async function downloadJson(payload, suggestedName) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); if (window.showSaveFilePicker) { try { const handle = await window.showSaveFilePicker({ suggestedName, types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }] }); const writable = await handle.createWritable(); await writable.write(blob); await writable.close(); return; } catch (err) { if (err?.name === 'AbortError') return; } } const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = suggestedName; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
 function safeFileName(name) { return String(name || 'scenario').toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'scenario'; }
-async function exportCurrentScenario() { updateActiveScenario(); const scenario = scenarios.find(s => s.id === activeScenarioId) || currentScenarioSnapshot(); await downloadJson({ fileType: 'slsnz-pod-scenario', version: 14, scenario }, `${safeFileName(scenarioLabel(scenario))}.json`); }
-async function exportWorkspace() { updateActiveScenario(); await downloadJson({ fileType: 'slsnz-pod-workspace', version: 14, activeScenarioId, scenarios, layoutSettings }, `club-support-model-pod-designer-workspace.json`); }
+async function exportCurrentScenario() { updateActiveScenario(); const scenario = scenarios.find(s => s.id === activeScenarioId) || currentScenarioSnapshot(); await downloadJson({ fileType: 'slsnz-pod-scenario', version: APP_VERSION, scenario }, `${safeFileName(scenarioLabel(scenario))}.json`); }
+async function exportWorkspace() { updateActiveScenario(); await downloadJson({ fileType: 'slsnz-pod-workspace', version: APP_VERSION, activeScenarioId, scenarios, layoutSettings }, `club-support-model-pod-designer-workspace.json`); }
 async function importScenarioFile(file) { const state = JSON.parse(await file.text()); if (state.fileType === 'slsnz-pod-workspace' || Array.isArray(state.scenarios)) { const count = (state.scenarios || []).length; if (!confirm(`Import workspace with ${count} scenario${count === 1 ? '' : 's'}? This will replace the scenarios and settings currently saved in this browser.`)) return; scenarios = state.scenarios || []; layoutSettings = state.layoutSettings || layoutSettings; applyLayoutSettings(); applyScenario(scenarios.find(s => s.id === state.activeScenarioId) || scenarios[0]); save(); renderAll(); alert(`Workspace loaded: ${scenarios.length} scenario${scenarios.length === 1 ? '' : 's'}.`); return; } const scenario = state.fileType === 'slsnz-pod-scenario' ? state.scenario : { id: `scenario-${Date.now()}`, meta: { name: file.name.replace(/\.json$/i,''), description: '', created: new Date().toISOString(), updated: new Date().toISOString() }, clubs: state.clubs || state, pods: state.pods || pods, podNotes: state.podNotes || {} }; if (!confirm(`Import scenario "${scenarioLabel(scenario)}"? It will be added to your scenario list and loaded now.`)) return; scenario.id = `scenario-${Date.now()}`; scenarios.unshift(scenario); applyScenario(scenario); save(); renderAll(); alert(`Scenario loaded: ${scenarioLabel(scenario)}`); }
 function applyLayoutSettings() { const main = document.getElementById('appMain'); if (!main) return; main.style.setProperty('--left-w', `${layoutSettings.leftPercent || 50}%`); main.style.setProperty('--top-h', `${layoutSettings.topPercent || 42}%`); applyLayoutMode(); }
 function initResizableLayout() { applyLayoutSettings(); const main = document.getElementById('appMain'); const v = document.getElementById('verticalSplitter'); const h = document.getElementById('horizontalSplitter'); if (!main || !v || !h) return; v.addEventListener('pointerdown', e => { if (document.body.classList.contains('map-hidden')) return; e.preventDefault(); v.setPointerCapture(e.pointerId); const move = ev => { const rect = main.getBoundingClientRect(); const pct = Math.max(35, Math.min(72, ((ev.clientX - rect.left) / rect.width) * 100)); layoutSettings.leftPercent = Math.round(pct * 10) / 10; applyLayoutSettings(); refreshMapSize(); }; const up = () => { save(); v.removeEventListener('pointermove', move); v.removeEventListener('pointerup', up); }; v.addEventListener('pointermove', move); v.addEventListener('pointerup', up); }); h.addEventListener('pointerdown', e => { e.preventDefault(); h.setPointerCapture(e.pointerId); const move = ev => { const rect = main.getBoundingClientRect(); const pct = Math.max(28, Math.min(68, ((ev.clientY - rect.top) / rect.height) * 100)); layoutSettings.topPercent = Math.round(pct * 10) / 10; applyLayoutSettings(); refreshMapSize(); }; const up = () => { save(); h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); }; h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); }); }
@@ -621,7 +683,17 @@ document.querySelectorAll('.expandBtn').forEach(button => button.addEventListene
 (async function start(){
   initMap();
   initResizableLayout();
-  if (!loadSaved()) { clubs = await fetch('clubs.json').then(r => r.json()); scenarios = [currentScenarioSnapshot()]; save(); }
+  defaultWorkspace = await loadDefaultWorkspace();
+  if (!loadSaved()) {
+    if (!loadDefaultState()) {
+      clubs = await fetch('clubs.json').then(r => r.json());
+      scenarioMeta = { ...scenarioMeta, name: '10 Pod Model' };
+      scenarios = [currentScenarioSnapshot()];
+    }
+    save();
+  } else if (mergeDefaultScenarios()) {
+    save();
+  }
   if (!scenarios.length) scenarios = [currentScenarioSnapshot()];
   selectedClubId = clubs[0]?.id || null;
   applyLayoutSettings();
@@ -820,5 +892,179 @@ function exportPdf() {
 
 window.addEventListener('beforeprint', () => reportMap?.invalidateSize());
 window.addEventListener('afterprint', () => reportMap?.invalidateSize());
+
+
+function scenarioPodFor(club, podList) {
+  return podList.find(p => p.name === club.pod || p.id === club.pod) || UNASSIGNED_POD;
+}
+function scenarioVisiblePods(scenario) {
+  const podList = (scenario.pods || []).filter(p => p.id !== 'unassigned').slice(0, MAX_PODS);
+  const hasUnassigned = (scenario.clubs || []).some(c => !podList.some(p => p.name === c.pod || p.id === c.pod));
+  return hasUnassigned ? [...podList, UNASSIGNED_POD] : podList;
+}
+function scenarioPodTotals(scenario) {
+  const podList = scenarioVisiblePods(scenario);
+  return podList.map(pod => {
+    const list = (scenario.clubs || []).filter(c => scenarioPodFor(c, podList).name === pod.name);
+    return {
+      pod,
+      list,
+      clubs: list.length,
+      primaryMembers: sum(list, 'primaryMembers'),
+      otherMembers: sum(list, 'otherMembers'),
+      volunteerPatrolHours: sum(list, 'volunteerPatrolHours'),
+      plsPatrolHours: sum(list, 'plsPatrolHours'),
+      patrollingVolunteers: sum(list, 'patrollingVolunteers'),
+      nationsEntries: sum(list, 'nationsEntries'),
+      geo: geographyStats(list)
+    };
+  });
+}
+function balanceScoreFromTotals(total, totals) {
+  const fields = ['clubs','primaryMembers','patrollingVolunteers','volunteerPatrolHours','plsPatrolHours','nationsEntries'];
+  const penalties = fields.map(field => {
+    const vals = totals.map(t => Number(t[field]) || 0);
+    const avgValue = vals.reduce((a,b)=>a+b,0) / Math.max(vals.length, 1);
+    if (!avgValue) return 0;
+    return Math.min(Math.abs((Number(total[field]) || 0) - avgValue) / avgValue, 1);
+  });
+  penalties.push(total.geo.level === 'bad' ? .55 : total.geo.level === 'warn' ? .25 : 0);
+  const avgPenalty = penalties.reduce((a,b)=>a+b,0) / penalties.length;
+  return Math.max(0, Math.round((1 - avgPenalty) * 100));
+}
+function scenarioScorecard(scenario) {
+  const totals = scenarioPodTotals(scenario);
+  const total = field => totals.reduce((t, row) => t + (Number(row[field]) || 0), 0);
+  const values = field => totals.map(t => Number(t[field]) || 0);
+  const stdDev = arr => {
+    const nums = arr.filter(n => Number.isFinite(n));
+    if (!nums.length) return 0;
+    const mean = nums.reduce((a,b)=>a+b,0) / nums.length;
+    return Math.sqrt(nums.reduce((t,n)=>t+(n-mean)**2,0) / nums.length);
+  };
+  const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0) / arr.length : 0;
+  const podScores = totals.map(t => balanceScoreFromTotals(t, totals));
+  return {
+    scenario,
+    totals,
+    podCount: totals.length,
+    clubCount: (scenario.clubs || []).length,
+    primaryMembers: total('primaryMembers'),
+    otherMembers: total('otherMembers'),
+    patrollingVolunteers: total('patrollingVolunteers'),
+    volunteerPatrolHours: total('volunteerPatrolHours'),
+    plsPatrolHours: total('plsPatrolHours'),
+    nationsEntries: total('nationsEntries'),
+    averageClubs: avg(values('clubs')),
+    largestClubPod: Math.max(...values('clubs'), 0),
+    smallestClubPod: Math.min(...values('clubs').filter(v => v > 0), 0),
+    maxPrimaryMembers: Math.max(...values('primaryMembers'), 0),
+    maxVolunteerHours: Math.max(...values('volunteerPatrolHours'), 0),
+    maxPlsHours: Math.max(...values('plsPatrolHours'), 0),
+    avgGeoSpread: avg(totals.map(t => t.geo.maxKm || 0)),
+    maxGeoSpread: Math.max(...totals.map(t => t.geo.maxKm || 0), 0),
+    memberStdDev: stdDev(values('primaryMembers')),
+    volunteerStdDev: stdDev(values('volunteerPatrolHours')),
+    clubStdDev: stdDev(values('clubs')),
+    balanceScore: Math.round(avg(podScores)) || 0
+  };
+}
+function compareDelta(a, b, field, decimals = 0) {
+  const delta = (Number(b[field]) || 0) - (Number(a[field]) || 0);
+  const sign = delta > 0 ? '+' : '';
+  return `${sign}${delta.toLocaleString(undefined, { maximumFractionDigits: decimals })}`;
+}
+function metricComparisonRow(label, a, b, field, opts = {}) {
+  const dec = opts.decimals ?? 0;
+  return `<tr><td>${escapeHtml(label)}</td><td>${fmt(a[field])}</td><td>${fmt(b[field])}</td><td class="deltaCell">${compareDelta(a,b,field,dec)}</td></tr>`;
+}
+function clubMovements(aScenario, bScenario) {
+  const aMap = new Map((aScenario.clubs || []).map(c => [c.id || c.name, c]));
+  const moves = [];
+  (bScenario.clubs || []).forEach(b => {
+    const a = aMap.get(b.id || b.name) || [...aMap.values()].find(c => c.name === b.name);
+    if (!a) return;
+    const from = a.pod || 'Unassigned';
+    const to = b.pod || 'Unassigned';
+    if (from !== to) moves.push({ name: b.name, from, to });
+  });
+  return moves.sort((x,y) => x.name.localeCompare(y.name));
+}
+function modelInsights(a, b, moves) {
+  const insights = [];
+  insights.push(`${moves.length} club${moves.length === 1 ? '' : 's'} change pod between the two models.`);
+  if (a.podCount !== b.podCount) insights.push(`The candidate model changes the structure from ${a.podCount} pods to ${b.podCount} pods.`);
+  if (b.balanceScore > a.balanceScore) insights.push(`The candidate model has a higher overall balance score (+${b.balanceScore - a.balanceScore} points).`);
+  else if (b.balanceScore < a.balanceScore) insights.push(`The candidate model has a lower overall balance score (${b.balanceScore - a.balanceScore} points).`);
+  else insights.push('Overall balance score is unchanged.');
+  if (b.largestClubPod > a.largestClubPod) insights.push(`The largest pod increases from ${a.largestClubPod} clubs to ${b.largestClubPod} clubs.`);
+  if (b.maxGeoSpread > a.maxGeoSpread) insights.push(`Maximum geographic spread increases by ${fmt(b.maxGeoSpread - a.maxGeoSpread)} km.`);
+  else if (b.maxGeoSpread < a.maxGeoSpread) insights.push(`Maximum geographic spread decreases by ${fmt(a.maxGeoSpread - b.maxGeoSpread)} km.`);
+  if (b.volunteerStdDev > a.volunteerStdDev) insights.push('Volunteer patrol hours are more unevenly distributed across pods.');
+  else if (b.volunteerStdDev < a.volunteerStdDev) insights.push('Volunteer patrol hours are more evenly distributed across pods.');
+  return insights;
+}
+function ensureCompareOverlay() {
+  let overlay = document.getElementById('compareOverlay');
+  if (overlay) return overlay;
+  overlay = document.createElement('section');
+  overlay.id = 'compareOverlay';
+  overlay.className = 'compareOverlay';
+  overlay.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(overlay);
+  return overlay;
+}
+function openCompareModels() {
+  updateActiveScenario();
+  if (scenarios.length < 2) { alert('Create or import at least two scenarios before comparing models.'); return; }
+  const overlay = ensureCompareOverlay();
+  const first = scenarios.find(s => s.id === activeScenarioId) || scenarios[0];
+  const second = scenarios.find(s => s.id !== first.id) || scenarios[0];
+  overlay.innerHTML = `<div class="compareShell">
+    <div class="compareHeader"><div><h2>Evaluate Models</h2><p>Compare whole-model outcomes without trying to match pod names across scenarios.</p></div><button id="closeCompareBtn" type="button">×</button></div>
+    <div class="compareSelectors">
+      <label>Baseline<select id="compareA">${scenarios.map(s => `<option value="${s.id}" ${s.id === first.id ? 'selected' : ''}>${escapeHtml(scenarioLabel(s))}</option>`).join('')}</select></label>
+      <label>Candidate<select id="compareB">${scenarios.map(s => `<option value="${s.id}" ${s.id === second.id ? 'selected' : ''}>${escapeHtml(scenarioLabel(s))}</option>`).join('')}</select></label>
+    </div>
+    <div id="compareResults"></div>
+  </div>`;
+  overlay.classList.add('is-open');
+  overlay.setAttribute('aria-hidden', 'false');
+  document.getElementById('closeCompareBtn').addEventListener('click', closeCompareModels);
+  document.getElementById('compareA').addEventListener('change', renderCompareResults);
+  document.getElementById('compareB').addEventListener('change', renderCompareResults);
+  renderCompareResults();
+}
+function closeCompareModels() {
+  const overlay = document.getElementById('compareOverlay');
+  overlay?.classList.remove('is-open');
+  overlay?.setAttribute('aria-hidden', 'true');
+}
+function renderCompareResults() {
+  const aId = document.getElementById('compareA')?.value;
+  const bId = document.getElementById('compareB')?.value;
+  const aScenario = scenarios.find(s => s.id === aId);
+  const bScenario = scenarios.find(s => s.id === bId);
+  const el = document.getElementById('compareResults');
+  if (!aScenario || !bScenario || !el) return;
+  const a = scenarioScorecard(aScenario);
+  const b = scenarioScorecard(bScenario);
+  const moves = clubMovements(aScenario, bScenario);
+  const insights = modelInsights(a, b, moves);
+  el.innerHTML = `<div class="compareScoreRow">
+      <div class="compareScoreCard"><span>${escapeHtml(scenarioLabel(aScenario))}</span><b>${a.balanceScore}%</b><small>${balanceLabel(a.balanceScore)}</small></div>
+      <div class="compareScoreCard"><span>${escapeHtml(scenarioLabel(bScenario))}</span><b>${b.balanceScore}%</b><small>${balanceLabel(b.balanceScore)}</small></div>
+      <div class="compareScoreCard"><span>Clubs moved</span><b>${moves.length}</b><small>${a.clubCount ? Math.round(moves.length / a.clubCount * 100) : 0}% of clubs</small></div>
+    </div>
+    <div class="compareGrid">
+      <section class="compareCard"><h3>Key Insights</h3><ul>${insights.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul></section>
+      <section class="compareCard"><h3>Model totals</h3><table>${metricComparisonRow('Pods', a,b,'podCount')}${metricComparisonRow('Clubs', a,b,'clubCount')}${metricComparisonRow('Primary Members', a,b,'primaryMembers')}${metricComparisonRow('Patrol Volunteers', a,b,'patrollingVolunteers')}${metricComparisonRow('Volunteer Hours', a,b,'volunteerPatrolHours')}${metricComparisonRow('PLS Hours', a,b,'plsPatrolHours')}${metricComparisonRow('Nationals Entries', a,b,'nationsEntries')}</table></section>
+      <section class="compareCard"><h3>Distribution</h3><table>${metricComparisonRow('Largest pod by clubs', a,b,'largestClubPod')}${metricComparisonRow('Average clubs per pod', a,b,'averageClubs', {decimals:1})}${metricComparisonRow('Largest pod by members', a,b,'maxPrimaryMembers')}${metricComparisonRow('Largest volunteer workload', a,b,'maxVolunteerHours')}${metricComparisonRow('Largest PLS workload', a,b,'maxPlsHours')}${metricComparisonRow('Member balance spread', a,b,'memberStdDev')}${metricComparisonRow('Volunteer hour spread', a,b,'volunteerStdDev')}</table></section>
+      <section class="compareCard"><h3>Geographic complexity</h3><table>${metricComparisonRow('Average pod spread km', a,b,'avgGeoSpread')}${metricComparisonRow('Maximum pod spread km', a,b,'maxGeoSpread')}</table><p class="compareHint">Distance is straight-line distance between clubs, useful as a relative indicator rather than a driving-time estimate.</p></section>
+    </div>
+    <section class="compareCard movementsCard"><h3>Club Movements</h3>${moves.length ? `<div class="movementsTableWrap"><table><thead><tr><th>Club</th><th>From</th><th>To</th></tr></thead><tbody>${moves.map(m => `<tr><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.from)}</td><td>${escapeHtml(m.to)}</td></tr>`).join('')}</tbody></table></div>` : '<p>No clubs change pod between these scenarios.</p>'}</section>`;
+}
+
+document.getElementById('compareBtn')?.addEventListener('click', openCompareModels);
 
 document.getElementById('pdfBtn')?.addEventListener('click', exportPdf);
