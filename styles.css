@@ -398,3 +398,7 @@ body.map-hidden #summary { grid-template-columns: repeat(var(--pod-count), minma
   .compareOverlay { padding: 10px; }
   .compareSelectors, .compareScoreRow, .compareGrid { grid-template-columns: 1fr; }
 }
+
+.versionBadge { display: inline-block; margin-left: 8px; padding: 3px 7px; border-radius: 999px; background: rgba(255,255,255,.18); color: #fff; font-size: 11px; vertical-align: middle; }
+.primaryActionBtn { background: #ffd84d; color: #003b52; }
+.primaryActionBtn:hover { filter: brightness(.98); }

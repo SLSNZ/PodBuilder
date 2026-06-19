@@ -1,4 +1,4 @@
-const APP_VERSION = 15;
+const APP_VERSION = '2.0.0';
 const DEFAULT_PODS = [
   { id: 'pod-1', name: 'North 1', color: '#0072B2' },
   { id: 'pod-2', name: 'North 2', color: '#00B050' },
