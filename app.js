@@ -30,12 +30,13 @@ let map;
 let reportMap = null;
 let reportMapMarkers = [];
 let draggedClubId = null;
+let draggedPodId = null;
 let selectedClubId = null;
 let podNotes = {};
 let scenarios = [];
 let activeScenarioId = 'current';
 let layoutSettings = { leftPercent: 50, topPercent: 42, layoutMode: 'default' };
-let scenarioMeta = { name: 'Current Allocation', description: 'Baseline working scenario', createdBy: '', created: new Date().toISOString(), updated: new Date().toISOString() };
+let scenarioMeta = { name: '10 pod model', description: 'Baseline working scenario', createdBy: '', created: new Date().toISOString(), updated: new Date().toISOString() };
 
 function currentScenarioSnapshot() {
   return {
@@ -63,7 +64,7 @@ function updateActiveScenario() {
 }
 const save = () => {
   if (clubs.length) updateActiveScenario();
-  localStorage.setItem('slsnzPodBuilder', JSON.stringify({ version: 13, activeScenarioId, scenarios, layoutSettings }));
+  localStorage.setItem('slsnzPodBuilder', JSON.stringify({ version: 14, activeScenarioId, scenarios, layoutSettings }));
   if (typeof renderScenarioPanel === 'function') renderScenarioPanel();
 };
 const loadSaved = () => {
@@ -209,25 +210,31 @@ function clubInfoHtml(club) {
     </div>
   </div>`;
 }
-function openClubInfoPopup(id) {
+function openClubInfoCallout(id, anchor) {
   const club = clubs.find(c => c.id === id);
-  if (!club) return;
-  let modal = document.getElementById('clubInfoModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'clubInfoModal';
-    modal.className = 'noteModal clubInfoModal';
-    modal.innerHTML = `<div class="noteModalCard clubInfoModalCard">
-      <div class="noteModalHeader"><h3 id="clubInfoTitle">Club info</h3><button id="closeClubInfoModal" type="button">×</button></div>
-      <div id="clubInfoContent"></div>
-    </div>`;
-    document.body.appendChild(modal);
-    document.getElementById('closeClubInfoModal').onclick = () => modal.classList.remove('is-open');
-    modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('is-open'); });
+  if (!club || !anchor) return;
+  let callout = document.getElementById('clubInfoCallout');
+  if (!callout) {
+    callout = document.createElement('div');
+    callout.id = 'clubInfoCallout';
+    callout.className = 'clubInfoCallout';
+    document.body.appendChild(callout);
   }
-  document.getElementById('clubInfoTitle').textContent = club.name;
-  document.getElementById('clubInfoContent').innerHTML = clubInfoHtml(club);
-  modal.classList.add('is-open');
+  callout.innerHTML = `<div class="clubInfoCalloutHeader"><strong>${escapeHtml(club.name)}</strong><button type="button" id="closeClubInfoCallout">×</button></div>${clubInfoHtml(club)}`;
+  const rect = anchor.getBoundingClientRect();
+  callout.style.left = `${Math.min(window.innerWidth - 390, Math.max(12, rect.right + 8))}px`;
+  callout.style.top = `${Math.min(window.innerHeight - 360, Math.max(12, rect.top - 8))}px`;
+  callout.classList.add('is-open');
+  document.getElementById('closeClubInfoCallout').onclick = () => callout.classList.remove('is-open');
+  setTimeout(() => {
+    const close = ev => {
+      if (!callout.contains(ev.target) && ev.target !== anchor) {
+        callout.classList.remove('is-open');
+        document.removeEventListener('click', close);
+      }
+    };
+    document.addEventListener('click', close);
+  }, 0);
 }
 
 function renderFilterBar() {
@@ -257,6 +264,8 @@ function renderBoard() {
     col.className = 'podColumn';
     col.style.setProperty('--pod', pod.color);
     col.dataset.pod = pod.name;
+    col.dataset.podId = pod.id;
+    if (pod.id !== 'unassigned') col.draggable = true;
 
     const podClubs = sortClubList(clubs.filter(c => podFor(c).name === pod.name && visibleIds.has(c.id)));
     const allPodClubs = clubs.filter(c => podFor(c).name === pod.name);
@@ -266,7 +275,7 @@ function renderBoard() {
       : `<input value="${pod.name}" data-pod-name="${pod.id}" title="Rename pod">`;
     const removeControl = canRemove ? `<button class="removePodBtn" data-remove-pod="${pod.id}" title="Remove empty pod">×</button>` : '';
 
-    col.innerHTML = `<div class="podTitle">${titleControl}<span class="count">${podClubs.length}</span>${removeControl}</div>`;
+    col.innerHTML = `<div class="podTitle" title="Drag pod column to reorder">${titleControl}<span class="count">${podClubs.length}</span>${removeControl}</div>`;
 
     podClubs.forEach(club => {
       const card = document.createElement('div');
@@ -281,13 +290,32 @@ function renderBoard() {
       col.appendChild(card);
     });
 
-    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('dropTarget'); });
-    col.addEventListener('dragleave', () => col.classList.remove('dropTarget'));
+    col.addEventListener('dragstart', e => {
+      if (!e.target.classList.contains('podColumn')) return;
+      draggedPodId = pod.id;
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add(draggedPodId ? 'podDropTarget' : 'dropTarget'); });
+    col.addEventListener('dragleave', () => { col.classList.remove('dropTarget'); col.classList.remove('podDropTarget'); });
     col.addEventListener('drop', e => {
       e.preventDefault();
       col.classList.remove('dropTarget');
+      col.classList.remove('podDropTarget');
+      if (draggedPodId && draggedPodId !== pod.id && pod.id !== 'unassigned') {
+        const from = pods.findIndex(p => p.id === draggedPodId);
+        const to = pods.findIndex(p => p.id === pod.id);
+        if (from >= 0 && to >= 0) {
+          const [moved] = pods.splice(from, 1);
+          pods.splice(to, 0, moved);
+          draggedPodId = null;
+          save();
+          renderAll();
+          return;
+        }
+      }
       const club = clubs.find(c => c.id === draggedClubId);
       if (club) { club.pod = pod.name; selectedClubId = club.id; save(); renderAll(); }
+      draggedClubId = null;
     });
 
     board.appendChild(col);
@@ -308,6 +336,11 @@ function renderBoard() {
     const clubCount = clubs.filter(c => podFor(c).id === pod.id).length;
     if (clubCount > 0) { alert('This pod still contains clubs. Move them first, then remove the pod.'); return; }
     if (confirm(`Remove empty pod "${pod.name}"?`)) { pods = pods.filter(p => p.id !== pod.id); save(); renderAll(); }
+  }));
+
+  document.querySelectorAll('[data-info-club]').forEach(button => button.addEventListener('click', e => {
+    e.stopPropagation();
+    openClubInfoCallout(e.currentTarget.dataset.infoClub, e.currentTarget);
   }));
 }
 
@@ -492,14 +525,15 @@ function closePodNoteEditor() {
 
 
 function scenarioLabel(scenario = { meta: scenarioMeta }) {
-  return scenario?.meta?.name || 'Untitled Scenario';
+  const name = scenario?.meta?.name || 'Untitled Scenario';
+  return name === 'Current Allocation' ? '10 pod model' : name;
 }
 function renderScenarioPanel() {
   const el = document.getElementById('scenarioPanel');
   if (!el) return;
   const active = scenarios.find(s => s.id === activeScenarioId) || currentScenarioSnapshot();
   const updated = active.meta?.updated ? new Date(active.meta.updated).toLocaleString('en-NZ', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
-  el.innerHTML = `<div class="scenarioInfo"><label>Scenario<select id="scenarioSelect"><option value="__new">New Scenario +</option><option value="__import">Import from file</option><option disabled>────────────</option>${scenarios.map(s => `<option value="${s.id}" ${s.id === activeScenarioId ? 'selected' : ''}>${escapeHtml(scenarioLabel(s))}</option>`).join('')}</select></label><div class="scenarioText"><b>${escapeHtml(scenarioLabel(active))}</b><span>${escapeHtml(active.meta?.description || 'No description added yet.')}</span><small>Last updated ${updated}</small></div></div><div class="scenarioActions"><button id="renameScenarioBtn" class="secondaryBtn">Edit info</button><button id="deleteScenarioBtn" class="secondaryBtn">Delete</button></div>`;
+  el.innerHTML = `<div class="scenarioInfo"><label>Scenario<select id="scenarioSelect"><option value="__new">New Scenario</option><option value="__import">Import from file</option><option disabled>────────────</option>${scenarios.map(s => `<option value="${s.id}" ${s.id === activeScenarioId ? 'selected' : ''}>${escapeHtml(scenarioLabel(s))}</option>`).join('')}</select></label><div class="scenarioText"><b>${escapeHtml(scenarioLabel(active))}</b><span>${escapeHtml(active.meta?.description || 'No description added yet.')}</span><small>Last updated ${updated}</small></div><div class="scenarioActions"><button id="renameScenarioBtn" class="secondaryBtn">Edit info</button><button id="deleteScenarioBtn" class="secondaryBtn">Delete</button></div></div>`;
   document.getElementById('scenarioSelect').addEventListener('change', e => {
     const value = e.target.value;
     if (value === '__new') { e.target.value = activeScenarioId; createNewScenario(); return; }
@@ -526,8 +560,8 @@ function editScenarioInfo() { const info = promptScenarioInfo(scenarioMeta.name,
 function deleteScenario() { if (scenarios.length <= 1) { alert('At least one scenario is required.'); return; } if (!confirm(`Delete scenario "${scenarioMeta.name}"?`)) return; scenarios = scenarios.filter(s => s.id !== activeScenarioId); applyScenario(scenarios[0]); save(); renderAll(); }
 async function downloadJson(payload, suggestedName) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); if (window.showSaveFilePicker) { try { const handle = await window.showSaveFilePicker({ suggestedName, types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }] }); const writable = await handle.createWritable(); await writable.write(blob); await writable.close(); return; } catch (err) { if (err?.name === 'AbortError') return; } } const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = suggestedName; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
 function safeFileName(name) { return String(name || 'scenario').toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'scenario'; }
-async function exportCurrentScenario() { updateActiveScenario(); const scenario = scenarios.find(s => s.id === activeScenarioId) || currentScenarioSnapshot(); await downloadJson({ fileType: 'slsnz-pod-scenario', version: 13, scenario }, `${safeFileName(scenarioLabel(scenario))}.json`); }
-async function exportWorkspace() { updateActiveScenario(); await downloadJson({ fileType: 'slsnz-pod-workspace', version: 13, activeScenarioId, scenarios, layoutSettings }, `club-support-model-pod-designer-workspace.json`); }
+async function exportCurrentScenario() { updateActiveScenario(); const scenario = scenarios.find(s => s.id === activeScenarioId) || currentScenarioSnapshot(); await downloadJson({ fileType: 'slsnz-pod-scenario', version: 14, scenario }, `${safeFileName(scenarioLabel(scenario))}.json`); }
+async function exportWorkspace() { updateActiveScenario(); await downloadJson({ fileType: 'slsnz-pod-workspace', version: 14, activeScenarioId, scenarios, layoutSettings }, `club-support-model-pod-designer-workspace.json`); }
 async function importScenarioFile(file) { const state = JSON.parse(await file.text()); if (state.fileType === 'slsnz-pod-workspace' || Array.isArray(state.scenarios)) { const count = (state.scenarios || []).length; if (!confirm(`Import workspace with ${count} scenario${count === 1 ? '' : 's'}? This will replace the scenarios and settings currently saved in this browser.`)) return; scenarios = state.scenarios || []; layoutSettings = state.layoutSettings || layoutSettings; applyLayoutSettings(); applyScenario(scenarios.find(s => s.id === state.activeScenarioId) || scenarios[0]); save(); renderAll(); alert(`Workspace loaded: ${scenarios.length} scenario${scenarios.length === 1 ? '' : 's'}.`); return; } const scenario = state.fileType === 'slsnz-pod-scenario' ? state.scenario : { id: `scenario-${Date.now()}`, meta: { name: file.name.replace(/\.json$/i,''), description: '', created: new Date().toISOString(), updated: new Date().toISOString() }, clubs: state.clubs || state, pods: state.pods || pods, podNotes: state.podNotes || {} }; if (!confirm(`Import scenario "${scenarioLabel(scenario)}"? It will be added to your scenario list and loaded now.`)) return; scenario.id = `scenario-${Date.now()}`; scenarios.unshift(scenario); applyScenario(scenario); save(); renderAll(); alert(`Scenario loaded: ${scenarioLabel(scenario)}`); }
 function applyLayoutSettings() { const main = document.getElementById('appMain'); if (!main) return; main.style.setProperty('--left-w', `${layoutSettings.leftPercent || 50}%`); main.style.setProperty('--top-h', `${layoutSettings.topPercent || 42}%`); applyLayoutMode(); }
 function initResizableLayout() { applyLayoutSettings(); const main = document.getElementById('appMain'); const v = document.getElementById('verticalSplitter'); const h = document.getElementById('horizontalSplitter'); if (!main || !v || !h) return; v.addEventListener('pointerdown', e => { if (document.body.classList.contains('map-hidden')) return; e.preventDefault(); v.setPointerCapture(e.pointerId); const move = ev => { const rect = main.getBoundingClientRect(); const pct = Math.max(35, Math.min(72, ((ev.clientX - rect.left) / rect.width) * 100)); layoutSettings.leftPercent = Math.round(pct * 10) / 10; applyLayoutSettings(); refreshMapSize(); }; const up = () => { save(); v.removeEventListener('pointermove', move); v.removeEventListener('pointerup', up); }; v.addEventListener('pointermove', move); v.addEventListener('pointerup', up); }); h.addEventListener('pointerdown', e => { e.preventDefault(); h.setPointerCapture(e.pointerId); const move = ev => { const rect = main.getBoundingClientRect(); const pct = Math.max(28, Math.min(68, ((ev.clientY - rect.top) / rect.height) * 100)); layoutSettings.topPercent = Math.round(pct * 10) / 10; applyLayoutSettings(); refreshMapSize(); }; const up = () => { save(); h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); }; h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); }); }
@@ -567,7 +601,7 @@ document.getElementById('resetAllBtn')?.addEventListener('click', () => {
 document.getElementById('exportMenuBtn')?.addEventListener('click', e => { e.stopPropagation(); const menu = document.getElementById('exportMenu'); menu.hidden = !menu.hidden; });
 document.getElementById('layoutsBtn')?.addEventListener('click', e => { e.stopPropagation(); const menu = document.getElementById('layoutsMenu'); menu.hidden = !menu.hidden; });
 document.querySelectorAll('[data-layout]').forEach(btn => btn.addEventListener('click', e => setLayoutMode(e.currentTarget.dataset.layout)));
-document.addEventListener('click', () => { ['exportMenu','resetMenu','layoutsMenu'].forEach(id => { const menu = document.getElementById(id); if (menu) menu.hidden = true; }); });
+document.addEventListener('click', () => { ['exportMenu','layoutsMenu'].forEach(id => { const menu = document.getElementById(id); if (menu) menu.hidden = true; }); });
 document.getElementById('exportScenarioBtn')?.addEventListener('click', exportCurrentScenario);
 document.getElementById('exportWorkspaceBtn')?.addEventListener('click', exportWorkspace);
 document.getElementById('importInput').addEventListener('change', async e => { const file = e.target.files[0]; if (!file) return; try { await importScenarioFile(file); } catch (err) { alert('That file could not be imported. Please check it is a valid scenario or workspace JSON file.'); console.error(err); } e.target.value = ''; });
@@ -718,7 +752,7 @@ function buildPdfReport() {
   overlay.className = 'reportOverlay';
   overlay.innerHTML = `<div class="reportToolbar">
     <div><strong>PDF report preview</strong><span>Review the pages, then use Print / Save PDF.</span></div>
-    <div class="reportToolbarActions"><button id="printReportBtn" type="button">Print / Save PDF</button><button id="closeReportBtn" type="button">Close</button></div>
+    <div class="reportToolbarActions"><button id="printReportBtn" type="button">Download PDF</button><button id="closeReportBtn" type="button">Close</button></div>
   </div>
   <div id="reportPages" class="reportPages">
     <section class="reportPage reportMapPage">
@@ -736,10 +770,7 @@ function openReportPreview() {
   const overlay = document.getElementById('reportView');
   overlay.classList.add('is-open');
   overlay.setAttribute('aria-hidden', 'false');
-  document.getElementById('printReportBtn')?.addEventListener('click', () => {
-    reportMap?.invalidateSize();
-    setTimeout(() => { reportMap?.invalidateSize(); window.print(); }, 600);
-  });
+  document.getElementById('printReportBtn')?.addEventListener('click', generateReportPdf);
   document.getElementById('closeReportBtn')?.addEventListener('click', closeReportPreview);
   setTimeout(renderReportLeafletMap, 100);
 }
@@ -749,6 +780,38 @@ function closeReportPreview() {
   overlay.classList.remove('is-open');
   overlay.setAttribute('aria-hidden', 'true');
   if (reportMap) { reportMap.remove(); reportMap = null; reportMapMarkers = []; }
+}
+
+async function generateReportPdf() {
+  const pages = [...document.querySelectorAll('#reportPages .reportPage')];
+  if (!pages.length) return;
+  if (!window.html2canvas || !window.jspdf?.jsPDF) {
+    alert('PDF libraries are still loading. Please wait a moment and try again.');
+    return;
+  }
+  const btn = document.getElementById('printReportBtn');
+  const originalText = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating PDF...'; }
+  try {
+    reportMap?.invalidateSize();
+    await new Promise(resolve => setTimeout(resolve, 650));
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    for (let i = 0; i < pages.length; i++) {
+      const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false });
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      if (i > 0) pdf.addPage('a4', 'portrait');
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
+    }
+    pdf.save(`${safeFileName(scenarioMeta.name || 'pod-scenario')}-report.pdf`);
+  } catch (err) {
+    console.error(err);
+    alert('The app could not generate the PDF automatically. Leaving the report preview open so you can still use browser print if needed.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalText || 'Download PDF'; }
+  }
 }
 
 function exportPdf() {

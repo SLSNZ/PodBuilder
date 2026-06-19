@@ -14,21 +14,7 @@
       <p>Design and compare club support pod allocations. Map colours and pod summaries update automatically.</p>
     </div>
     <div class="actions">
-      <button id="toggleMapBtn">Hide Map</button>
-      <div class="menuWrap">
-        <button id="resetMenuBtn">Reset ▾</button>
-        <div id="resetMenu" class="menuPanel" hidden>
-          <button id="resetViewBtn">Reset view settings</button>
-          <button id="resetAllBtn">Reset all settings and allocations</button>
-        </div>
-      </div>
-      <div class="menuWrap">
-        <button id="exportMenuBtn">Export ▾</button>
-        <div id="exportMenu" class="menuPanel" hidden>
-          <button id="exportScenarioBtn">Export current scenario</button>
-          <button id="exportWorkspaceBtn">Export all scenarios & settings</button>
-        </div>
-      </div>
+      <button id="pdfBtn">Export to PDF</button>
       <div class="menuWrap">
         <button id="layoutsBtn">Layouts ▾</button>
         <div id="layoutsMenu" class="menuPanel" hidden>
@@ -38,8 +24,15 @@
           <button data-layout="mapPlanner">Map + planner</button>
         </div>
       </div>
-      <button id="pdfBtn">Export PDF</button>
-      <label class="importBtn">Import File<input id="importInput" type="file" accept="application/json" hidden></label>
+      <span class="menuDivider" aria-hidden="true"></span>
+      <div class="menuWrap">
+        <button id="exportMenuBtn">Export ▾</button>
+        <div id="exportMenu" class="menuPanel" hidden>
+          <button id="exportScenarioBtn">Export current scenario</button>
+          <button id="exportWorkspaceBtn">Export all scenarios & settings</button>
+        </div>
+      </div>
+      <label class="importBtn">Import<input id="importInput" type="file" accept="application/json" hidden></label>
     </div>
   </header>
 
@@ -90,6 +83,8 @@
   <section id="reportView" aria-hidden="true"></section>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -344,3 +344,22 @@ body.map-hidden #summary { grid-template-columns: repeat(var(--pod-count), minma
   #summaryPanel.is-fullscreen #summary { grid-template-columns: 1fr; }
   .compactDetails { grid-template-columns: 1fr; }
 }
+
+/* v14 workflow polish */
+.actions { align-items: center; }
+.menuDivider { width: 1px; height: 28px; background: rgba(255,255,255,.35); display: inline-block; margin: 0 2px; }
+.importBtn { display: inline-flex; align-items: center; }
+.scenarioPanel { justify-content: flex-start; }
+.scenarioInfo { flex: 1 1 auto; }
+.scenarioActions { margin-left: 4px; }
+.scenarioActions .secondaryBtn { white-space: nowrap; }
+.podColumn[draggable="true"] .podTitle { cursor: grab; }
+.podColumn.podDropTarget { outline: 2px dashed var(--pod); outline-offset: -4px; }
+.clubInfoCallout { display: none; position: fixed; z-index: 40000; width: 360px; max-width: calc(100vw - 24px); max-height: min(520px, calc(100vh - 24px)); overflow: auto; background: white; border: 1px solid #d9e2ec; border-radius: 12px; box-shadow: 0 16px 50px rgba(16,42,67,.28); padding: 12px; }
+.clubInfoCallout.is-open { display: block; }
+.clubInfoCalloutHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid #edf2f7; color: #005f83; }
+.clubInfoCalloutHeader button { width: 26px; height: 26px; padding: 0; border-radius: 999px; background: #eef6fa; color: #005f83; font-size: 18px; line-height: 1; }
+.clubInfoCallout .detailItem { background: #f1f5f9; border-radius: 8px; padding: 7px; }
+.clubInfoCallout .detailItem span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: #627d98; margin-bottom: 2px; }
+.reportToolbarActions button:disabled { opacity: .7; cursor: wait; }
+@media print { .reportOverlay { display: none !important; } }
